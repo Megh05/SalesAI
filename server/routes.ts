@@ -490,6 +490,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Development: Seed sample emails for testing
+  app.post("/api/dev/seed-emails", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+
+      const sampleEmails = [
+        {
+          sender: "John Smith",
+          senderEmail: "john.smith@techcorp.com",
+          subject: "Interested in your B2B sales automation platform",
+          preview: "Hi, I saw your product and I'm very interested in learning more about how it can help streamline our sales process...",
+          userId,
+        },
+        {
+          sender: "Sarah Johnson",
+          senderEmail: "sarah.j@startup.io",
+          subject: "Follow-up on our demo call",
+          preview: "Thanks for the great demo yesterday! Our team is excited about the AI features. Can we schedule a follow-up to discuss pricing?",
+          userId,
+        },
+        {
+          sender: "Mike Chen",
+          senderEmail: "m.chen@enterprise.com",
+          subject: "Pricing and contract terms",
+          preview: "We're ready to move forward. Could you send over the pricing details for the enterprise plan and the contract for review?",
+          userId,
+        },
+        {
+          sender: "Emily Davis",
+          senderEmail: "emily@smallbiz.com",
+          subject: "Meeting request - Product demo",
+          preview: "I'd like to schedule a product demo for our sales team next week. Are you available Tuesday or Wednesday afternoon?",
+          userId,
+        },
+        {
+          sender: "Robert Lee",
+          senderEmail: "rob.lee@bigcompany.com",
+          subject: "Question about integration capabilities",
+          preview: "Hi, we're using Salesforce and HubSpot. Does your platform integrate with these systems?",
+          userId,
+        },
+      ];
+
+      const createdEmails = [];
+      for (const email of sampleEmails) {
+        const created = await storage.createEmailThread(email);
+        createdEmails.push(created);
+      }
+
+      res.json({ message: "Sample emails created", count: createdEmails.length, emails: createdEmails });
+    } catch (error: any) {
+      console.error("Error seeding emails:", error);
+      res.status(500).json({ message: error.message || "Failed to seed emails" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

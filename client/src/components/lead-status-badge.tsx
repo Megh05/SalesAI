@@ -1,9 +1,10 @@
 import { Badge } from "@/components/ui/badge";
+import { Sparkles } from "lucide-react";
 
 type LeadStatus = "prospect" | "contacted" | "in_discussion" | "negotiation" | "closed_won" | "closed_lost";
 
 interface LeadStatusBadgeProps {
-  status: LeadStatus;
+  status: LeadStatus | string;
 }
 
 const statusConfig: Record<LeadStatus, { label: string; variant: "default" | "secondary" | "outline" }> = {
@@ -15,11 +16,32 @@ const statusConfig: Record<LeadStatus, { label: string; variant: "default" | "se
   closed_lost: { label: "Closed Lost", variant: "secondary" },
 };
 
+const aiClassificationConfig: Record<string, { variant: "default" | "secondary" | "outline" }> = {
+  "Lead Inquiry": { variant: "default" },
+  "Follow-up": { variant: "outline" },
+  "Negotiation": { variant: "default" },
+  "Meeting Request": { variant: "outline" },
+  "Question": { variant: "secondary" },
+  "Closed": { variant: "default" },
+};
+
 export function LeadStatusBadge({ status }: LeadStatusBadgeProps) {
-  const config = statusConfig[status];
+  const lowerStatus = status.toLowerCase().replace(/\s+/g, '_') as LeadStatus;
+  
+  if (statusConfig[lowerStatus]) {
+    const config = statusConfig[lowerStatus];
+    return (
+      <Badge variant={config.variant} data-testid={`badge-status-${lowerStatus}`}>
+        {config.label}
+      </Badge>
+    );
+  }
+  
+  const aiConfig = aiClassificationConfig[status] || { variant: "outline" as const };
   return (
-    <Badge variant={config.variant} data-testid={`badge-status-${status}`}>
-      {config.label}
+    <Badge variant={aiConfig.variant} className="gap-1" data-testid={`badge-ai-${status}`}>
+      <Sparkles className="h-3 w-3" />
+      {status}
     </Badge>
   );
 }
