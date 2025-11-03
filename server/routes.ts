@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import passport from "passport";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, hashPassword } from "./auth";
+import { aiService } from "./ai";
 import {
   insertCompanySchema,
   insertContactSchema,
@@ -372,6 +373,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error updating settings:", error);
       res.status(400).json({ message: error.message || "Failed to update settings" });
+    }
+  });
+
+  app.post("/api/emails/:id/classify", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { id } = req.params;
+
+      const email = await storage.getEmailThread(id, userId);
+      if (!email) {
+        return res.status(404).json({ message: "Email not found" });
+      }
+
+      const classification = await aiService.classifyEmail(userId, {
+        subject: email.subject,
+        from: email.senderEmail,
+        preview: email.preview || "",
+      });
+
+      if (!classification) {
+        return res.status(400).json({ message: "AI service not configured or unavailable" });
+      }
+
+      // Update email with classification
+      await storage.updateEmailThread(id, userId, {
+        aiClassification: classification.classification,
+        confidence: classification.confidence,
+        nextAction: classification.nextAction,
+      });
+
+      res.json(classification);
+    } catch (error: any) {
+      console.error("Error classifying email:", error);
+      res.status(500).json({ message: error.message || "Failed to classify email" });
+    }
+  });
+
+  app.post("/api/emails/:id/summarize", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { id } = req.params;
+
+      const email = await storage.getEmailThread(id, userId);
+      if (!email) {
+        return res.status(404).json({ message: "Email not found" });
+      }
+
+      const result = await aiService.summarizeEmail(userId, {
+        subject: email.subject,
+        from: email.senderEmail,
+        body: email.preview || "",
+      });
+
+      if (!result) {
+        return res.status(400).json({ message: "AI service not configured or unavailable" });
+      }
+
+      // Update email with summary
+      await storage.updateEmailThread(id, userId, {
+        aiSummary: result.summary,
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error summarizing email:", error);
+      res.status(500).json({ message: error.message || "Failed to summarize email" });
     }
   });
 

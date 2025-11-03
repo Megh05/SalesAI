@@ -43,10 +43,8 @@ export default function Settings() {
 
   const updateSettings = useMutation({
     mutationFn: async (data: SettingsFormData) => {
-      return apiRequest("/api/settings", {
-        method: "PUT",
-        body: JSON.stringify(data),
-      });
+      const res = await apiRequest("PUT", "/api/settings", data);
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
@@ -80,10 +78,8 @@ export default function Settings() {
     setConnectionStatus(null);
 
     try {
-      const response = await apiRequest("/api/settings/test-ai", {
-        method: "POST",
-        body: JSON.stringify({ apiKey }),
-      });
+      const res = await apiRequest("POST", "/api/settings/test-ai", { apiKey });
+      const response = await res.json();
 
       setConnectionStatus({
         connected: response.connected,
