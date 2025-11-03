@@ -22,8 +22,10 @@ import {
 } from "@shared/schema";
 
 export interface IStorage {
-  // User operations (Replit Auth required)
+  // User operations
   getUser(id: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<{ id: string; email: string; password: string; firstName: string | null; lastName: string | null; profileImageUrl: string | null; createdAt: Date | null; updatedAt: Date | null } | undefined>;
+  createUser(userData: UpsertUser): Promise<User>;
   upsertUser(user: UpsertUser): Promise<User>;
 
   // Company operations
@@ -63,10 +65,23 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
-  // User operations (Replit Auth required)
+  // User operations
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
+    if (!user) return undefined;
+    const { password: _, ...userWithoutPassword } = user;
+    return userWithoutPassword;
+  }
+
+  async getUserByEmail(email: string) {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
     return user;
+  }
+
+  async createUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db.insert(users).values(userData).returning();
+    const { password: _, ...userWithoutPassword } = user;
+    return userWithoutPassword;
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
@@ -81,7 +96,8 @@ export class DatabaseStorage implements IStorage {
         },
       })
       .returning();
-    return user;
+    const { password: _, ...userWithoutPassword } = user;
+    return userWithoutPassword;
   }
 
   // Company operations
