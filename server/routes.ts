@@ -11,6 +11,7 @@ import {
   insertEmailThreadSchema,
   insertUserSchema,
   loginSchema,
+  insertUserSettingsSchema,
 } from "@shared/schema";
 
 type AuthRequest = Request & { user?: any };
@@ -325,6 +326,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error marking email as read:", error);
       res.status(500).json({ message: "Failed to mark email as read" });
+    }
+  });
+
+  // Settings routes
+  app.get("/api/settings", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      let settings = await storage.getUserSettings(userId);
+      
+      // Create default settings if none exist
+      if (!settings) {
+        settings = await storage.createUserSettings({
+          userId,
+          aiModel: "mistralai/mistral-7b-instruct",
+        });
+      }
+      
+      res.json(settings);
+    } catch (error) {
+      console.error("Error fetching settings:", error);
+      res.status(500).json({ message: "Failed to fetch settings" });
+    }
+  });
+
+  app.put("/api/settings", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const settingsData = insertUserSettingsSchema.partial().parse(req.body);
+      
+      let settings = await storage.getUserSettings(userId);
+      
+      if (!settings) {
+        // Create if doesn't exist
+        settings = await storage.createUserSettings({
+          ...settingsData,
+          userId,
+        });
+      } else {
+        // Update existing
+        settings = await storage.updateUserSettings(userId, settingsData);
+      }
+      
+      res.json(settings);
+    } catch (error: any) {
+      console.error("Error updating settings:", error);
+      res.status(400).json({ message: error.message || "Failed to update settings" });
+    }
+  });
+
+  app.post("/api/settings/test-ai", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { apiKey } = req.body;
+      
+      if (!apiKey) {
+        return res.status(400).json({ message: "API key is required" });
+      }
+
+      // Test the API key by making a simple request
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}` : "http://localhost:5000",
+          "X-Title": "SalesPilot",
+        },
+        body: JSON.stringify({
+          model: "mistralai/mistral-7b-instruct:free",
+          messages: [{ role: "user", content: "Hello" }],
+          max_tokens: 10,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        return res.status(400).json({ 
+          message: "Invalid API key",
+          connected: false,
+          error: error.error?.message || "API key test failed"
+        });
+      }
+
+      res.json({ 
+        message: "API key is valid",
+        connected: true 
+      });
+    } catch (error: any) {
+      console.error("Error testing AI API:", error);
+      res.status(500).json({ 
+        message: "Failed to test API key",
+        connected: false,
+        error: error.message
+      });
     }
   });
 

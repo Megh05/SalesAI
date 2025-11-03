@@ -13,12 +13,15 @@ import {
   type InsertActivity,
   type EmailThread,
   type InsertEmailThread,
+  type UserSettings,
+  type InsertUserSettings,
   users,
   companies,
   contacts,
   leads,
   activities,
   emailThreads,
+  userSettings,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -62,6 +65,11 @@ export interface IStorage {
   createEmailThread(emailThread: InsertEmailThread): Promise<EmailThread>;
   updateEmailThread(id: string, userId: string, emailThread: Partial<InsertEmailThread>): Promise<EmailThread | undefined>;
   markEmailAsRead(id: string, userId: string): Promise<boolean>;
+
+  // User settings operations
+  getUserSettings(userId: string): Promise<UserSettings | undefined>;
+  createUserSettings(settings: InsertUserSettings): Promise<UserSettings>;
+  updateUserSettings(userId: string, settings: Partial<InsertUserSettings>): Promise<UserSettings | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -241,6 +249,29 @@ export class DatabaseStorage implements IStorage {
       .set({ isRead: 1 })
       .where(and(eq(emailThreads.id, id), eq(emailThreads.userId, userId)));
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // User settings operations
+  async getUserSettings(userId: string): Promise<UserSettings | undefined> {
+    const [settings] = await db.select().from(userSettings).where(eq(userSettings.userId, userId));
+    return settings;
+  }
+
+  async createUserSettings(settingsData: InsertUserSettings): Promise<UserSettings> {
+    const [settings] = await db.insert(userSettings).values(settingsData).returning();
+    return settings;
+  }
+
+  async updateUserSettings(userId: string, settingsData: Partial<InsertUserSettings>): Promise<UserSettings | undefined> {
+    const [updated] = await db
+      .update(userSettings)
+      .set({
+        ...settingsData,
+        updatedAt: new Date(),
+      })
+      .where(eq(userSettings.userId, userId))
+      .returning();
+    return updated;
   }
 }
 

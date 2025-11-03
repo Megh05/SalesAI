@@ -145,3 +145,23 @@ export const insertEmailThreadSchema = createInsertSchema(emailThreads).omit({
 
 export type InsertEmailThread = z.infer<typeof insertEmailThreadSchema>;
 export type EmailThread = typeof emailThreads.$inferSelect;
+
+export const userSettings = pgTable("user_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
+  openrouterApiKey: varchar("openrouter_api_key"),
+  gmailConnected: integer("gmail_connected").default(0).notNull(),
+  linkedinConnected: integer("linkedin_connected").default(0).notNull(),
+  aiModel: varchar("ai_model").default("mistralai/mistral-7b-instruct"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertUserSettingsSchema = createInsertSchema(userSettings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertUserSettings = z.infer<typeof insertUserSettingsSchema>;
+export type UserSettings = typeof userSettings.$inferSelect;
