@@ -6,6 +6,18 @@ SalesPilot is a comprehensive B2B sales automation platform that helps businesse
 
 The application serves as a centralized hub for managing companies, contacts, leads, activities, and communications with AI-assisted features for email summarization, lead classification, and next-action recommendations.
 
+## Recent Changes
+
+**November 4, 2025** - Added AI-Powered Lead Auto-Creation Feature
+- New AI analysis feature in Smart Inbox that detects potential leads from emails
+- One-click lead creation that automatically extracts and creates:
+  - Contact information (name, email, phone, role)
+  - Company information (name, industry, size, location)
+  - Lead record with proper status and source tracking
+- AI provides confidence scores and reasoning for lead suggestions
+- Intelligent duplicate detection prevents creating duplicate contacts/companies
+- Uses existing OpenRouter/Mistral integration for cost-effective AI processing
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
@@ -83,10 +95,12 @@ Preferred communication style: Simple, everyday language.
 
 ### External Dependencies
 
-**AI Services** (Planned Integration):
+**AI Services** (Active Integration):
 - Mistral/OpenRouter API for:
   - Email classification (Lead Inquiry, Follow-up, Negotiation, etc.)
   - Email thread summarization
+  - Lead detection and extraction from emails
+  - Contact and company information extraction
   - Confidence scoring for AI predictions
   - Next action recommendations
   - Auto-response generation
