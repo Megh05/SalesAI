@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import crypto from "crypto";
 import passport from "passport";
+import { getSession } from "./session"; // Assuming getSession is imported from './session'
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, hashPassword } from "./auth";
 import { aiService } from "./ai";
@@ -21,6 +22,9 @@ import {
 type AuthRequest = Request & { user?: any };
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Apply session middleware before authentication
+  app.use(getSession());
+
   // Setup authentication
   await setupAuth(app);
 
@@ -530,7 +534,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (leadData.company) {
         const existingCompanies = await storage.getCompanies(userId);
         const existingCompany = existingCompanies.find(c => c.name.toLowerCase() === leadData.company!.name.toLowerCase());
-        
+
         if (existingCompany) {
           companyId = existingCompany.id;
         } else {
@@ -549,7 +553,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const existingContacts = await storage.getContacts(userId);
       let contactId: string;
       const existingContact = existingContacts.find(c => c.email.toLowerCase() === leadData.contact.email.toLowerCase());
-      
+
       if (existingContact) {
         contactId = existingContact.id;
         await storage.updateContact(existingContact.id, userId, {
@@ -575,7 +579,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const existingLeads = await storage.getLeads(userId);
       const existingLead = existingLeads.find(l => l.contactId === contactId);
-      
+
       let lead;
       if (existingLead) {
         lead = await storage.updateLead(existingLead.id, userId, {
@@ -638,20 +642,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (!response.ok) {
         const error = await response.json();
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: "Invalid API key",
           connected: false,
           error: error.error?.message || "API key test failed"
         });
       }
 
-      res.json({ 
+      res.json({
         message: "API key is valid",
-        connected: true 
+        connected: true
       });
     } catch (error: any) {
       console.error("Error testing AI API:", error);
-      res.status(500).json({ 
+      res.status(500).json({
         message: "Failed to test API key",
         connected: false,
         error: error.message
