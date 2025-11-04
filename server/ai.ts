@@ -249,6 +249,118 @@ Extract and return in this exact JSON format (use null for missing fields):
       return null;
     }
   }
+
+  async extractLeadData(
+    userId: string,
+    emailContent: {
+      from: string;
+      senderEmail: string;
+      subject: string;
+      preview: string;
+    }
+  ): Promise<{
+    contact: {
+      name: string;
+      email: string;
+      phone?: string;
+      role?: string;
+    };
+    company?: {
+      name: string;
+      industry?: string;
+      size?: string;
+      location?: string;
+    };
+    lead: {
+      status: string;
+      value?: string;
+      source: string;
+    };
+    isPotentialLead: boolean;
+    confidence: number;
+    reasoning: string;
+  } | null> {
+    try {
+      const apiKey = await this.getApiKey(userId);
+      if (!apiKey) {
+        console.warn("No API key configured for user", userId);
+        return null;
+      }
+
+      const prompt = `You are a sales AI assistant analyzing an email to determine if it represents a potential lead and extract relevant information.
+
+Email Details:
+From: ${emailContent.from} <${emailContent.senderEmail}>
+Subject: ${emailContent.subject}
+Preview: ${emailContent.preview}
+
+Analyze this email and extract the following information. Return ONLY valid JSON in this exact format:
+{
+  "isPotentialLead": true or false,
+  "confidence": 0-100,
+  "reasoning": "Brief explanation why this is/isn't a potential lead",
+  "contact": {
+    "name": "Contact's full name",
+    "email": "${emailContent.senderEmail}",
+    "phone": "Phone number if mentioned, else null",
+    "role": "Job title/role if mentioned, else null"
+  },
+  "company": {
+    "name": "Company name if mentioned, else null",
+    "industry": "Industry if mentioned, else null",
+    "size": "Company size if mentioned, else null",
+    "location": "Location if mentioned, else null"
+  },
+  "lead": {
+    "status": "prospect or qualified or contacted",
+    "value": "Estimated deal value if mentioned, else null",
+    "source": "email"
+  }
+}
+
+Consider it a potential lead if the email indicates:
+- Interest in products/services
+- Business inquiry
+- Partnership opportunity
+- Request for information
+- Meeting request for business purposes`;
+
+      const response = await this.makeOpenRouterRequest(
+        apiKey,
+        [{ role: "user", content: prompt }],
+        400
+      );
+
+      const cleaned = response.trim().replace(/```json\n?/g, '').replace(/```\n?/g, '');
+      const result = JSON.parse(cleaned);
+
+      return {
+        isPotentialLead: result.isPotentialLead || false,
+        confidence: Math.min(100, Math.max(0, result.confidence || 50)),
+        reasoning: result.reasoning || "Unable to determine",
+        contact: {
+          name: result.contact?.name || emailContent.from,
+          email: emailContent.senderEmail,
+          phone: result.contact?.phone || undefined,
+          role: result.contact?.role || undefined,
+        },
+        company: result.company?.name ? {
+          name: result.company.name,
+          industry: result.company.industry || undefined,
+          size: result.company.size || undefined,
+          location: result.company.location || undefined,
+        } : undefined,
+        lead: {
+          status: result.lead?.status || "prospect",
+          value: result.lead?.value || undefined,
+          source: "email",
+        },
+      };
+    } catch (error) {
+      console.error("Error extracting lead data:", error);
+      return null;
+    }
+  }
 }
 
 export const aiService = new AIService();

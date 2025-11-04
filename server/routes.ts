@@ -477,6 +477,140 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/emails/:id/analyze-lead", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { id } = req.params;
+
+      const email = await storage.getEmailThread(id, userId);
+      if (!email) {
+        return res.status(404).json({ message: "Email not found" });
+      }
+
+      const leadData = await aiService.extractLeadData(userId, {
+        from: email.sender,
+        senderEmail: email.senderEmail,
+        subject: email.subject,
+        preview: email.preview || "",
+      });
+
+      if (!leadData) {
+        return res.status(400).json({ message: "AI service not configured or unavailable" });
+      }
+
+      res.json(leadData);
+    } catch (error: any) {
+      console.error("Error analyzing lead from email:", error);
+      res.status(500).json({ message: error.message || "Failed to analyze lead" });
+    }
+  });
+
+  app.post("/api/emails/:id/create-lead", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { id } = req.params;
+
+      const email = await storage.getEmailThread(id, userId);
+      if (!email) {
+        return res.status(404).json({ message: "Email not found" });
+      }
+
+      const leadData = await aiService.extractLeadData(userId, {
+        from: email.sender,
+        senderEmail: email.senderEmail,
+        subject: email.subject,
+        preview: email.preview || "",
+      });
+
+      if (!leadData) {
+        return res.status(400).json({ message: "AI service not configured or unavailable" });
+      }
+
+      let companyId = null;
+      if (leadData.company) {
+        const existingCompanies = await storage.getCompanies(userId);
+        const existingCompany = existingCompanies.find(c => c.name.toLowerCase() === leadData.company!.name.toLowerCase());
+        
+        if (existingCompany) {
+          companyId = existingCompany.id;
+        } else {
+          const newCompany = await storage.createCompany({
+            name: leadData.company.name,
+            industry: leadData.company.industry || null,
+            size: leadData.company.size || null,
+            location: leadData.company.location || null,
+            revenue: null,
+            userId,
+          });
+          companyId = newCompany.id;
+        }
+      }
+
+      const existingContacts = await storage.getContacts(userId);
+      let contactId: string;
+      const existingContact = existingContacts.find(c => c.email.toLowerCase() === leadData.contact.email.toLowerCase());
+      
+      if (existingContact) {
+        contactId = existingContact.id;
+        await storage.updateContact(existingContact.id, userId, {
+          phone: leadData.contact.phone || existingContact.phone,
+          role: leadData.contact.role || existingContact.role,
+          companyId: companyId || existingContact.companyId,
+        });
+      } else {
+        const newContact = await storage.createContact({
+          name: leadData.contact.name,
+          email: leadData.contact.email,
+          phone: leadData.contact.phone || null,
+          role: leadData.contact.role || null,
+          companyId: companyId,
+          tags: null,
+          linkedinProfileUrl: null,
+          linkedinHeadline: null,
+          linkedinImageUrl: null,
+          userId,
+        });
+        contactId = newContact.id;
+      }
+
+      const existingLeads = await storage.getLeads(userId);
+      const existingLead = existingLeads.find(l => l.contactId === contactId);
+      
+      let lead;
+      if (existingLead) {
+        lead = await storage.updateLead(existingLead.id, userId, {
+          companyId: companyId || existingLead.companyId,
+          value: leadData.lead.value || existingLead.value,
+        });
+      } else {
+        lead = await storage.createLead({
+          contactId: contactId,
+          companyId: companyId,
+          status: leadData.lead.status,
+          value: leadData.lead.value || null,
+          source: leadData.lead.source,
+          userId,
+        });
+      }
+
+      await storage.updateEmailThread(id, userId, {
+        contactId: contactId,
+        leadId: lead.id,
+      });
+
+      res.json({
+        success: true,
+        lead,
+        contactId,
+        companyId,
+        message: existingLead ? "Lead updated successfully" : "Lead created successfully",
+      });
+    } catch (error: any) {
+      console.error("Error creating lead from email:", error);
+      res.status(500).json({ message: error.message || "Failed to create lead" });
+    }
+  });
+
   app.post("/api/settings/test-ai", isAuthenticated, async (req: AuthRequest, res: Response) => {
     try {
       const userId = (req.user as any).id;
