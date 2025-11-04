@@ -29,6 +29,7 @@ import {
 
 const contactFormSchema = insertContactSchema.omit({ userId: true }).extend({
   tags: z.string().optional(),
+  linkedinProfileUrl: z.string().optional(),
 });
 
 type ContactFormData = z.infer<typeof contactFormSchema>;
@@ -181,13 +182,27 @@ export default function Contacts() {
                 <div className="space-y-4">
                   <div className="flex items-start gap-4">
                     <Avatar className="h-12 w-12">
-                      <AvatarFallback>{getInitials(contact.name)}</AvatarFallback>
+                      {contact.linkedinImageUrl ? (
+                        <img src={contact.linkedinImageUrl} alt={contact.name} className="object-cover" />
+                      ) : (
+                        <AvatarFallback>{getInitials(contact.name)}</AvatarFallback>
+                      )}
                     </Avatar>
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold mb-1 truncate">{contact.name}</h3>
                       {contact.role && <p className="text-sm text-muted-foreground truncate">{contact.role}</p>}
                       {contact.companyId && (
                         <p className="text-sm text-muted-foreground truncate">{getCompanyName(contact.companyId)}</p>
+                      )}
+                      {contact.linkedinProfileUrl && (
+                        <a 
+                          href={contact.linkedinProfileUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-600 hover:underline"
+                        >
+                          View LinkedIn Profile
+                        </a>
                       )}
                     </div>
                   </div>
@@ -235,6 +250,34 @@ export default function Contacts() {
                       Delete
                     </Button>
                   </div>
+                  
+                  {!contact.linkedinProfileUrl && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="w-full mt-2"
+                      onClick={async () => {
+                        const url = prompt("Enter LinkedIn Profile URL:");
+                        if (url) {
+                          try {
+                            await apiRequest("POST", `/api/contacts/${contact.id}/enrich-linkedin`, {
+                              linkedinProfileUrl: url
+                            });
+                            queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+                            toast({ title: "Success", description: "Contact enriched with LinkedIn data" });
+                          } catch (error: any) {
+                            toast({ 
+                              title: "Error", 
+                              description: error.message || "Failed to enrich contact",
+                              variant: "destructive"
+                            });
+                          }
+                        }
+                      }}
+                    >
+                      Add LinkedIn Profile
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -296,6 +339,7 @@ function ContactFormDialog({
       role: contact.role || "",
       companyId: contact.companyId || "",
       tags: contact.tags?.join(", ") || "",
+      linkedinProfileUrl: contact.linkedinProfileUrl || "",
     } : {
       name: "",
       email: "",
@@ -303,6 +347,7 @@ function ContactFormDialog({
       role: "",
       companyId: "",
       tags: "",
+      linkedinProfileUrl: "",
     },
   });
 
@@ -411,6 +456,20 @@ function ContactFormDialog({
                 <FormLabel>Tags (comma-separated)</FormLabel>
                 <FormControl>
                   <Input placeholder="Decision Maker, Hot Lead" {...field} value={field.value || ""} data-testid="input-contact-tags" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="linkedinProfileUrl"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>LinkedIn Profile URL (optional)</FormLabel>
+                <FormControl>
+                  <Input placeholder="https://linkedin.com/in/username" {...field} value={field.value || ""} data-testid="input-contact-linkedin" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
