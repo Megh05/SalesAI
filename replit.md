@@ -91,15 +91,17 @@ Preferred communication style: Simple, everyday language.
   - Next action recommendations
   - Auto-response generation
 
-**Email Integration** (Planned):
+**Email Integration** (Pending Setup):
 - Gmail API via OAuth 2.0
-- Bi-directional sync for reading/sending emails
-- Automatic lead creation from incoming emails
+- NOTE: Replit Gmail connector was dismissed - requires manual OAuth setup
+- User needs to provide: Google Cloud Console OAuth 2.0 Client ID and Client Secret
+- Features: Bi-directional sync for reading/sending emails, automatic lead creation from incoming emails
 
-**Social Integration** (Planned):
+**Social Integration** (Pending Setup):
 - LinkedIn API via OAuth 2.0
-- Message synchronization
-- Contact enrichment
+- NOTE: No Replit LinkedIn connector available - requires manual OAuth setup
+- User needs to provide: LinkedIn Developer OAuth Client ID and Client Secret
+- Features: Message synchronization, contact enrichment
 
 **Workflow Automation** (Planned):
 - N8N integration for workflow orchestration
