@@ -28,7 +28,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/register", async (req: Request, res: Response) => {
     try {
       const userData = insertUserSchema.parse(req.body);
-      
+
       const existingUser = await storage.getUserByEmail(userData.email);
       if (existingUser) {
         return res.status(400).json({ message: "Email already registered" });
@@ -338,7 +338,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = (req.user as any).id;
       let settings = await storage.getUserSettings(userId);
-      
+
       // Create default settings if none exist
       if (!settings) {
         settings = await storage.createUserSettings({
@@ -346,7 +346,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           aiModel: "mistralai/mistral-7b-instruct",
         });
       }
-      
+
       res.json(settings);
     } catch (error) {
       console.error("Error fetching settings:", error);
@@ -358,9 +358,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = (req.user as any).id;
       const settingsData = insertUserSettingsSchema.partial().parse(req.body);
-      
+
       let settings = await storage.getUserSettings(userId);
-      
+
       if (!settings) {
         // Create if doesn't exist
         settings = await storage.createUserSettings({
@@ -371,7 +371,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Update existing
         settings = await storage.updateUserSettings(userId, settingsData);
       }
-      
+
       res.json(settings);
     } catch (error: any) {
       console.error("Error updating settings:", error);
@@ -418,7 +418,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
 
         const newStatus = classificationToStatus[classification.classification];
-        
+
         if (newStatus) {
           const existingLeads = await storage.getLeads(userId);
           const contactLead = existingLeads.find(l => l.contactId === email.contactId);
@@ -481,7 +481,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = (req.user as any).id;
       const { apiKey } = req.body;
-      
+
       if (!apiKey) {
         return res.status(400).json({ message: "API key is required" });
       }
@@ -537,9 +537,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const redirectUri = `${process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}` : "http://localhost:5000"}/api/oauth/gmail/callback`;
       const state = crypto.randomBytes(32).toString('base64url');
-      
+
       req.session!.gmailState = state;
-      
+
       const authUrl = gmailService.getAuthUrl(settings.gmailClientId, settings.gmailClientSecret, redirectUri, state);
 
       res.json({ authUrl });
@@ -631,9 +631,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const redirectUri = `${process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}` : "http://localhost:5000"}/api/oauth/linkedin/callback`;
       const state = crypto.randomBytes(32).toString('base64url');
-      
+
       req.session!.linkedinState = state;
-      
+
       const authUrl = linkedinService.getAuthUrl(settings.linkedinClientId, redirectUri, state);
       res.json({ authUrl });
     } catch (error: any) {
@@ -644,7 +644,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/oauth/linkedin/callback", async (req: AuthRequest, res: Response) => {
     try {
-      const { code, state } = req.query;
+      const { code, state, error, error_description } = req.query;
+
+      console.log("LinkedIn OAuth callback received:", { code: !!code, state: !!state, error, error_description });
+
+      if (error) {
+        console.error("LinkedIn OAuth error:", error, error_description);
+        return res.redirect(`/settings?linkedin=error&reason=oauth_error&detail=${encodeURIComponent(error_description as string || error as string)}`);
+      }
 
       if (!code || typeof code !== 'string') {
         return res.redirect('/settings?linkedin=error&reason=no_code');
@@ -659,6 +666,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (!state || !storedState || state !== storedState) {
+        console.error("State mismatch:", { received: state, stored: storedState });
         return res.redirect('/settings?linkedin=error&reason=invalid_state');
       }
 
@@ -668,7 +676,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const redirectUri = `${process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}` : "http://localhost:5000"}/api/oauth/linkedin/callback`;
-      const tokens = await linkedinService.getTokenFromCode(code, settings.linkedinClientId, settings.linkedinClientSecret, redirectUri);
+
+      console.log("LinkedIn token exchange - Using redirect URI:", redirectUri);
+
+      let tokens;
+      try {
+        tokens = await linkedinService.getTokenFromCode(code, settings.linkedinClientId, settings.linkedinClientSecret, redirectUri);
+      } catch (error: any) {
+        console.error("LinkedIn token exchange failed:", error);
+        return res.redirect('/settings?linkedin=error&reason=token_exchange_failed');
+      }
 
       const expiresAt = new Date(Date.now() + (tokens.expires_in || 5184000) * 1000);
 
@@ -727,7 +744,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const linkedinToken = await storage.getOAuthToken(userId, 'linkedin');
-      
+
       let enrichmentData: any = {
         linkedinProfileUrl
       };
@@ -753,7 +770,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/gmail/sync", isAuthenticated, async (req: AuthRequest, res: Response) => {
     try {
       const userId = (req.user as any).id;
-      
+
       const settings = await storage.getUserSettings(userId);
       const token = await storage.getOAuthToken(userId, 'gmail');
 
@@ -769,7 +786,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
 
       const messages = await gmailService.listMessages(gmail, 20);
-      
+
       const syncedEmails = [];
       for (const message of messages) {
         const fullMessage = await gmailService.getMessage(gmail, message.id);

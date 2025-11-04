@@ -128,10 +128,15 @@ export default function Settings() {
     const reason = params.get("reason");
 
     const getErrorMessage = (service: string, reason: string | null) => {
-      if (reason === "no_code") return `${service} authorization was cancelled or failed`;
-      if (reason === "not_authenticated") return "Session expired. Please try connecting again";
-      if (reason === "invalid_state") return "Security validation failed. Please try again";
-      return `Failed to connect ${service}`;
+      if (reason === "no_code") return `${service} authorization was cancelled. Please try again and make sure to approve the permissions.`;
+      if (reason === "not_authenticated") return "Session expired. Please log in again and retry connecting.";
+      if (reason === "invalid_state") return "Security validation failed. Please refresh the page and try again.";
+      if (reason === "token_exchange_failed") return `Failed to exchange authorization code with ${service}. Please check your Client ID and Secret.`;
+      if (reason === "oauth_error") {
+        const detail = params.get("detail");
+        return `${service} OAuth error: ${detail || "Unknown error"}. Please verify your redirect URI in the developer portal.`;
+      }
+      return `Failed to connect ${service}. Please try again.`;
     };
 
     if (gmailStatus === "connected") {
