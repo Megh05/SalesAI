@@ -2,9 +2,8 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import crypto from "crypto";
 import passport from "passport";
-import { getSession } from "./session"; // Assuming getSession is imported from './session'
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated, hashPassword } from "./auth";
+import { setupAuth, isAuthenticated, hashPassword, getSession } from "./auth";
 import { aiService } from "./ai";
 import { gmailService } from "./gmail";
 import { linkedinService } from "./linkedin";
