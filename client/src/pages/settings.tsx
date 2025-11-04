@@ -331,21 +331,30 @@ export default function Settings() {
                 type="button"
                 variant="default"
                 onClick={async () => {
-                  const hasCredentials = form.getValues("gmailClientId") && form.getValues("gmailClientSecret");
-                  if (!hasCredentials) {
+                  const gmailClientId = form.getValues("gmailClientId");
+                  const gmailClientSecret = form.getValues("gmailClientSecret");
+                  
+                  if (!gmailClientId || !gmailClientSecret) {
                     toast({
                       title: "Missing Credentials",
-                      description: "Please save your Gmail OAuth credentials first.",
+                      description: "Please enter your Gmail Client ID and Secret above.",
                       variant: "destructive",
                     });
                     return;
                   }
                   
                   try {
+                    // Save credentials first
+                    await apiRequest("PUT", "/api/settings", {
+                      gmailClientId,
+                      gmailClientSecret,
+                    });
+                    
+                    // Then initiate OAuth
                     const res = await apiRequest("GET", "/api/oauth/gmail/authorize");
                     const data = await res.json();
                     if (data.authUrl) {
-                      window.open(data.authUrl, "_blank");
+                      window.open(data.authUrl, "GoogleSignIn", "width=500,height=600");
                     }
                   } catch (error: any) {
                     toast({
@@ -357,7 +366,7 @@ export default function Settings() {
                 }}
                 data-testid="button-connect-gmail"
               >
-                Connect Gmail
+                Sign in with Google
               </Button>
             ) : (
               <>
@@ -484,21 +493,30 @@ export default function Settings() {
                 type="button"
                 variant="default"
                 onClick={async () => {
-                  const hasCredentials = form.getValues("linkedinClientId") && form.getValues("linkedinClientSecret");
-                  if (!hasCredentials) {
+                  const linkedinClientId = form.getValues("linkedinClientId");
+                  const linkedinClientSecret = form.getValues("linkedinClientSecret");
+                  
+                  if (!linkedinClientId || !linkedinClientSecret) {
                     toast({
                       title: "Missing Credentials",
-                      description: "Please save your LinkedIn OAuth credentials first.",
+                      description: "Please enter your LinkedIn Client ID and Secret above.",
                       variant: "destructive",
                     });
                     return;
                   }
                   
                   try {
+                    // Save credentials first
+                    await apiRequest("PUT", "/api/settings", {
+                      linkedinClientId,
+                      linkedinClientSecret,
+                    });
+                    
+                    // Then initiate OAuth
                     const res = await apiRequest("GET", "/api/oauth/linkedin/authorize");
                     const data = await res.json();
                     if (data.authUrl) {
-                      window.open(data.authUrl, "_blank");
+                      window.open(data.authUrl, "LinkedInSignIn", "width=500,height=600");
                     }
                   } catch (error: any) {
                     toast({
@@ -510,7 +528,7 @@ export default function Settings() {
                 }}
                 data-testid="button-connect-linkedin"
               >
-                Connect LinkedIn
+                Sign in with LinkedIn
               </Button>
             ) : (
               <Button
