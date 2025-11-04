@@ -549,20 +549,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/oauth/gmail/callback", isAuthenticated, async (req: AuthRequest, res: Response) => {
+  app.get("/api/oauth/gmail/callback", async (req: AuthRequest, res: Response) => {
     try {
-      const userId = (req.user as any).id;
       const { code, state } = req.query;
 
+      if (!code || typeof code !== 'string') {
+        return res.redirect('/settings?gmail=error&reason=no_code');
+      }
+
       const storedState = req.session?.gmailState;
+      const userId = req.session?.passport?.user;
       delete req.session!.gmailState;
 
-      if (!code || typeof code !== 'string') {
-        return res.status(400).json({ message: "Authorization code missing" });
+      if (!userId) {
+        return res.redirect('/settings?gmail=error&reason=not_authenticated');
       }
 
       if (!state || !storedState || state !== storedState) {
-        return res.status(400).json({ message: "Invalid state parameter - possible CSRF attack" });
+        return res.redirect('/settings?gmail=error&reason=invalid_state');
       }
 
       const settings = await storage.getUserSettings(userId);
@@ -638,20 +642,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/oauth/linkedin/callback", isAuthenticated, async (req: AuthRequest, res: Response) => {
+  app.get("/api/oauth/linkedin/callback", async (req: AuthRequest, res: Response) => {
     try {
-      const userId = (req.user as any).id;
       const { code, state } = req.query;
 
+      if (!code || typeof code !== 'string') {
+        return res.redirect('/settings?linkedin=error&reason=no_code');
+      }
+
       const storedState = req.session?.linkedinState;
+      const userId = req.session?.passport?.user;
       delete req.session!.linkedinState;
 
-      if (!code || typeof code !== 'string') {
-        return res.status(400).json({ message: "Authorization code missing" });
+      if (!userId) {
+        return res.redirect('/settings?linkedin=error&reason=not_authenticated');
       }
 
       if (!state || !storedState || state !== storedState) {
-        return res.status(400).json({ message: "Invalid state parameter - possible CSRF attack" });
+        return res.redirect('/settings?linkedin=error&reason=invalid_state');
       }
 
       const settings = await storage.getUserSettings(userId);

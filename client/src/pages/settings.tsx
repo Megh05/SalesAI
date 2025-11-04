@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -74,7 +74,7 @@ export default function Settings() {
 
   const testConnection = async () => {
     const apiKey = form.getValues("openrouterApiKey");
-    
+
     if (!apiKey) {
       toast({
         title: "API Key Required",
@@ -120,6 +120,52 @@ export default function Settings() {
   const onSubmit = (data: SettingsFormData) => {
     updateSettings.mutate(data);
   };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const gmailStatus = params.get("gmail");
+    const linkedinStatus = params.get("linkedin");
+    const reason = params.get("reason");
+
+    const getErrorMessage = (service: string, reason: string | null) => {
+      if (reason === "no_code") return `${service} authorization was cancelled or failed`;
+      if (reason === "not_authenticated") return "Session expired. Please try connecting again";
+      if (reason === "invalid_state") return "Security validation failed. Please try again";
+      return `Failed to connect ${service}`;
+    };
+
+    if (gmailStatus === "connected") {
+      toast({
+        title: "Success",
+        description: "Gmail connected successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+      window.history.replaceState({}, "", "/settings");
+    } else if (gmailStatus === "error") {
+      toast({
+        title: "Error",
+        description: getErrorMessage("Gmail", reason),
+        variant: "destructive",
+      });
+      window.history.replaceState({}, "", "/settings");
+    }
+
+    if (linkedinStatus === "connected") {
+      toast({
+        title: "Success",
+        description: "LinkedIn connected successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+      window.history.replaceState({}, "", "/settings");
+    } else if (linkedinStatus === "error") {
+      toast({
+        title: "Error",
+        description: getErrorMessage("LinkedIn", reason),
+        variant: "destructive",
+      });
+      window.history.replaceState({}, "", "/settings");
+    }
+  }, [queryClient, toast]);
 
   if (isLoading) {
     return (
@@ -333,7 +379,7 @@ export default function Settings() {
                 onClick={async () => {
                   const gmailClientId = form.getValues("gmailClientId");
                   const gmailClientSecret = form.getValues("gmailClientSecret");
-                  
+
                   if (!gmailClientId || !gmailClientSecret) {
                     toast({
                       title: "Missing Credentials",
@@ -342,14 +388,14 @@ export default function Settings() {
                     });
                     return;
                   }
-                  
+
                   try {
                     // Save credentials first
                     await apiRequest("PUT", "/api/settings", {
                       gmailClientId,
                       gmailClientSecret,
                     });
-                    
+
                     // Then initiate OAuth
                     const res = await apiRequest("GET", "/api/oauth/gmail/authorize");
                     const data = await res.json();
@@ -495,7 +541,7 @@ export default function Settings() {
                 onClick={async () => {
                   const linkedinClientId = form.getValues("linkedinClientId");
                   const linkedinClientSecret = form.getValues("linkedinClientSecret");
-                  
+
                   if (!linkedinClientId || !linkedinClientSecret) {
                     toast({
                       title: "Missing Credentials",
@@ -504,14 +550,14 @@ export default function Settings() {
                     });
                     return;
                   }
-                  
+
                   try {
                     // Save credentials first
                     await apiRequest("PUT", "/api/settings", {
                       linkedinClientId,
                       linkedinClientSecret,
                     });
-                    
+
                     // Then initiate OAuth
                     const res = await apiRequest("GET", "/api/oauth/linkedin/authorize");
                     const data = await res.json();
