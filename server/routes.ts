@@ -406,6 +406,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         nextAction: classification.nextAction,
       });
 
+      // Auto-create or update leads based on classification
+      if (email.contactId) {
+        const classificationToStatus: Record<string, string> = {
+          "Lead Inquiry": "prospect",
+          "Follow-up": "qualified",
+          "Negotiation": "negotiation",
+          "Meeting Request": "demo",
+          "Closed Won": "won",
+          "Closed Lost": "lost",
+        };
+
+        const newStatus = classificationToStatus[classification.classification];
+        
+        if (newStatus) {
+          const existingLeads = await storage.getLeads(userId);
+          const contactLead = existingLeads.find(l => l.contactId === email.contactId);
+
+          if (contactLead) {
+            await storage.updateLead(contactLead.id, userId, { status: newStatus });
+          } else if (classification.classification === "Lead Inquiry" || classification.classification === "Negotiation") {
+            const contact = await storage.getContact(email.contactId);
+            await storage.createLead({
+              contactId: email.contactId,
+              companyId: contact?.companyId || null,
+              status: newStatus,
+              source: "email",
+              userId,
+            });
+          }
+        }
+      }
+
       res.json(classification);
     } catch (error: any) {
       console.error("Error classifying email:", error);
@@ -668,6 +700,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error disconnecting LinkedIn:", error);
       res.status(500).json({ message: error.message || "Failed to disconnect LinkedIn" });
+    }
+  });
+
+  app.post("/api/contacts/:id/enrich-linkedin", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const contactId = req.params.id;
+      const { linkedinProfileUrl } = req.body;
+
+      if (!linkedinProfileUrl) {
+        return res.status(400).json({ message: "LinkedIn profile URL is required" });
+      }
+
+      const contact = await storage.getContact(contactId);
+      if (!contact || contact.userId !== userId) {
+        return res.status(404).json({ message: "Contact not found" });
+      }
+
+      const linkedinToken = await storage.getOAuthToken(userId, 'linkedin');
+      
+      let enrichmentData: any = {
+        linkedinProfileUrl
+      };
+
+      if (linkedinToken) {
+        try {
+          const profile = await linkedinService.getUserProfile(linkedinToken.accessToken);
+          enrichmentData.linkedinImageUrl = profile.picture;
+        } catch (error) {
+          console.warn("Could not fetch LinkedIn profile data, saving URL only:", error);
+        }
+      }
+
+      const updated = await storage.updateContact(contactId, userId, enrichmentData);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error enriching contact with LinkedIn data:", error);
+      res.status(500).json({ message: error.message || "Failed to enrich contact" });
     }
   });
 

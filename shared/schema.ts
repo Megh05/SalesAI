@@ -69,6 +69,9 @@ export const contacts = pgTable("contacts", {
   role: text("role"),
   companyId: varchar("company_id").references(() => companies.id, { onDelete: "set null" }),
   tags: text("tags").array(),
+  linkedinProfileUrl: text("linkedin_profile_url"),
+  linkedinHeadline: text("linkedin_headline"),
+  linkedinImageUrl: text("linkedin_image_url"),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
