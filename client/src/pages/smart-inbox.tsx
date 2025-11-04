@@ -12,16 +12,44 @@ import {
   TrendingUp, 
   Loader2, 
   AlertCircle,
-  RefreshCw 
+  RefreshCw,
+  UserPlus,
+  Building,
+  Check
 } from "lucide-react";
 import type { EmailThread } from "@shared/schema";
 import { AIConfidenceBadge } from "@/components/ai-confidence-badge";
 import { LeadStatusBadge } from "@/components/lead-status-badge";
 
+interface LeadAnalysis {
+  contact: {
+    name: string;
+    email: string;
+    phone?: string;
+    role?: string;
+  };
+  company?: {
+    name: string;
+    industry?: string;
+    size?: string;
+    location?: string;
+  };
+  lead: {
+    status: string;
+    value?: string;
+    source: string;
+  };
+  isPotentialLead: boolean;
+  confidence: number;
+  reasoning: string;
+}
+
 export default function SmartInbox() {
   const { toast } = useToast();
   const [selectedEmail, setSelectedEmail] = useState<string | null>(null);
   const [processingEmails, setProcessingEmails] = useState<Set<string>>(new Set());
+  const [leadAnalysis, setLeadAnalysis] = useState<Record<string, LeadAnalysis>>({});
+  const [creatingLead, setCreatingLead] = useState<string | null>(null);
 
   const { data: emails, isLoading } = useQuery<EmailThread[]>({
     queryKey: ["/api/emails"],
@@ -102,7 +130,61 @@ export default function SmartInbox() {
     }
   };
 
+  const analyzeForLead = async (emailId: string) => {
+    setProcessingEmails(prev => new Set(prev).add(emailId));
+    try {
+      const res = await apiRequest("POST", `/api/emails/${emailId}/analyze-lead`);
+      const data = await res.json();
+      
+      setLeadAnalysis(prev => ({ ...prev, [emailId]: data }));
+      
+      toast({
+        title: data.isPotentialLead ? "Potential Lead Detected!" : "Analysis Complete",
+        description: data.reasoning,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Analysis Failed",
+        description: error.message || "Failed to analyze email. Make sure your API key is configured.",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingEmails(prev => {
+        const next = new Set(prev);
+        next.delete(emailId);
+        return next;
+      });
+    }
+  };
+
+  const createLeadFromEmail = async (emailId: string) => {
+    setCreatingLead(emailId);
+    try {
+      const res = await apiRequest("POST", `/api/emails/${emailId}/create-lead`);
+      const data = await res.json();
+      
+      queryClient.invalidateQueries({ queryKey: ["/api/emails"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
+      
+      toast({
+        title: "Success!",
+        description: data.message || "Lead created successfully with contact and company information.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Creation Failed",
+        description: error.message || "Failed to create lead from email.",
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingLead(null);
+    }
+  };
+
   const selectedEmailData = emails?.find(e => e.id === selectedEmail);
+  const currentAnalysis = selectedEmail ? leadAnalysis[selectedEmail] : null;
   const hasEmails = emails && emails.length > 0;
 
   if (isLoading) {
@@ -309,6 +391,125 @@ export default function SmartInbox() {
                             <>
                               <Sparkles className="w-4 h-4 mr-2" />
                               Classify Email
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  <Separator />
+
+                  {/* AI Lead Analysis */}
+                  <div className="space-y-4">
+                    <h3 className="font-semibold flex items-center gap-2">
+                      <UserPlus className="w-4 h-4 text-primary" />
+                      AI Lead Analysis
+                    </h3>
+
+                    {currentAnalysis ? (
+                      <div className="space-y-3">
+                        {currentAnalysis.isPotentialLead ? (
+                          <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-lg border border-green-200 dark:border-green-800">
+                            <div className="flex items-start gap-2 mb-2">
+                              <Check className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5" />
+                              <div>
+                                <p className="text-sm font-semibold text-green-900 dark:text-green-100">
+                                  Potential Lead Detected ({currentAnalysis.confidence}% confidence)
+                                </p>
+                                <p className="text-sm text-green-700 dark:text-green-300 mt-1">
+                                  {currentAnalysis.reasoning}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="bg-muted/50 p-4 rounded-lg">
+                            <p className="text-sm font-medium mb-1">Analysis Result:</p>
+                            <p className="text-sm text-muted-foreground">{currentAnalysis.reasoning}</p>
+                          </div>
+                        )}
+
+                        {/* Extracted Information */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div className="bg-blue-50 dark:bg-blue-950/20 p-3 rounded-lg">
+                            <p className="text-xs font-semibold text-blue-900 dark:text-blue-100 mb-2 flex items-center gap-1">
+                              <UserPlus className="w-3 h-3" />
+                              Contact Info
+                            </p>
+                            <div className="space-y-1 text-xs text-blue-700 dark:text-blue-300">
+                              <p><span className="font-medium">Name:</span> {currentAnalysis.contact.name}</p>
+                              <p><span className="font-medium">Email:</span> {currentAnalysis.contact.email}</p>
+                              {currentAnalysis.contact.phone && (
+                                <p><span className="font-medium">Phone:</span> {currentAnalysis.contact.phone}</p>
+                              )}
+                              {currentAnalysis.contact.role && (
+                                <p><span className="font-medium">Role:</span> {currentAnalysis.contact.role}</p>
+                              )}
+                            </div>
+                          </div>
+
+                          {currentAnalysis.company && (
+                            <div className="bg-purple-50 dark:bg-purple-950/20 p-3 rounded-lg">
+                              <p className="text-xs font-semibold text-purple-900 dark:text-purple-100 mb-2 flex items-center gap-1">
+                                <Building className="w-3 h-3" />
+                                Company Info
+                              </p>
+                              <div className="space-y-1 text-xs text-purple-700 dark:text-purple-300">
+                                <p><span className="font-medium">Name:</span> {currentAnalysis.company.name}</p>
+                                {currentAnalysis.company.industry && (
+                                  <p><span className="font-medium">Industry:</span> {currentAnalysis.company.industry}</p>
+                                )}
+                                {currentAnalysis.company.size && (
+                                  <p><span className="font-medium">Size:</span> {currentAnalysis.company.size}</p>
+                                )}
+                                {currentAnalysis.company.location && (
+                                  <p><span className="font-medium">Location:</span> {currentAnalysis.company.location}</p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {currentAnalysis.isPotentialLead && (
+                          <Button
+                            onClick={() => createLeadFromEmail(selectedEmailData.id)}
+                            disabled={creatingLead === selectedEmailData.id}
+                            className="w-full"
+                            data-testid="button-create-lead"
+                          >
+                            {creatingLead === selectedEmailData.id ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Creating Lead...
+                              </>
+                            ) : (
+                              <>
+                                <UserPlus className="w-4 h-4 mr-2" />
+                                Create Lead with Contact & Company
+                              </>
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="bg-muted/50 p-4 rounded-lg flex items-center justify-between">
+                        <p className="text-sm text-muted-foreground">Analyze this email to detect potential leads</p>
+                        <Button
+                          size="sm"
+                          onClick={() => analyzeForLead(selectedEmailData.id)}
+                          disabled={processingEmails.has(selectedEmailData.id)}
+                          data-testid="button-analyze-lead"
+                        >
+                          {processingEmails.has(selectedEmailData.id) ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Analyzing...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-4 h-4 mr-2" />
+                              Analyze for Lead
                             </>
                           )}
                         </Button>
