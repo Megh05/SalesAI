@@ -150,7 +150,11 @@ export const userSettings = pgTable("user_settings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
   openrouterApiKey: varchar("openrouter_api_key"),
+  gmailClientId: varchar("gmail_client_id"),
+  gmailClientSecret: varchar("gmail_client_secret"),
   gmailConnected: integer("gmail_connected").default(0).notNull(),
+  linkedinClientId: varchar("linkedin_client_id"),
+  linkedinClientSecret: varchar("linkedin_client_secret"),
   linkedinConnected: integer("linkedin_connected").default(0).notNull(),
   aiModel: varchar("ai_model").default("mistralai/mistral-7b-instruct"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -165,3 +169,25 @@ export const insertUserSettingsSchema = createInsertSchema(userSettings).omit({
 
 export type InsertUserSettings = z.infer<typeof insertUserSettingsSchema>;
 export type UserSettings = typeof userSettings.$inferSelect;
+
+export const oauthTokens = pgTable("oauth_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull(),
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token"),
+  tokenType: text("token_type").default("Bearer"),
+  expiresAt: timestamp("expires_at"),
+  scope: text("scope"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertOAuthTokenSchema = createInsertSchema(oauthTokens).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertOAuthToken = z.infer<typeof insertOAuthTokenSchema>;
+export type OAuthToken = typeof oauthTokens.$inferSelect;

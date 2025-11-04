@@ -15,6 +15,8 @@ import {
   type InsertEmailThread,
   type UserSettings,
   type InsertUserSettings,
+  type OAuthToken,
+  type InsertOAuthToken,
   users,
   companies,
   contacts,
@@ -22,6 +24,7 @@ import {
   activities,
   emailThreads,
   userSettings,
+  oauthTokens,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -70,6 +73,12 @@ export interface IStorage {
   getUserSettings(userId: string): Promise<UserSettings | undefined>;
   createUserSettings(settings: InsertUserSettings): Promise<UserSettings>;
   updateUserSettings(userId: string, settings: Partial<InsertUserSettings>): Promise<UserSettings | undefined>;
+
+  // OAuth token operations
+  getOAuthToken(userId: string, provider: string): Promise<OAuthToken | undefined>;
+  createOAuthToken(token: InsertOAuthToken): Promise<OAuthToken>;
+  updateOAuthToken(userId: string, provider: string, token: Partial<InsertOAuthToken>): Promise<OAuthToken | undefined>;
+  deleteOAuthToken(userId: string, provider: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -272,6 +281,39 @@ export class DatabaseStorage implements IStorage {
       .where(eq(userSettings.userId, userId))
       .returning();
     return updated;
+  }
+
+  // OAuth token operations
+  async getOAuthToken(userId: string, provider: string): Promise<OAuthToken | undefined> {
+    const [token] = await db
+      .select()
+      .from(oauthTokens)
+      .where(and(eq(oauthTokens.userId, userId), eq(oauthTokens.provider, provider)));
+    return token;
+  }
+
+  async createOAuthToken(tokenData: InsertOAuthToken): Promise<OAuthToken> {
+    const [token] = await db.insert(oauthTokens).values(tokenData).returning();
+    return token;
+  }
+
+  async updateOAuthToken(userId: string, provider: string, tokenData: Partial<InsertOAuthToken>): Promise<OAuthToken | undefined> {
+    const [updated] = await db
+      .update(oauthTokens)
+      .set({
+        ...tokenData,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(oauthTokens.userId, userId), eq(oauthTokens.provider, provider)))
+      .returning();
+    return updated;
+  }
+
+  async deleteOAuthToken(userId: string, provider: string): Promise<boolean> {
+    const result = await db
+      .delete(oauthTokens)
+      .where(and(eq(oauthTokens.userId, userId), eq(oauthTokens.provider, provider)));
+    return result.rowCount !== null && result.rowCount > 0;
   }
 }
 

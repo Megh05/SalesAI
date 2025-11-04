@@ -1,9 +1,12 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
+import crypto from "crypto";
 import passport from "passport";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, hashPassword } from "./auth";
 import { aiService } from "./ai";
+import { gmailService } from "./gmail";
+import { linkedinService } from "./linkedin";
 import {
   insertCompanySchema,
   insertContactSchema,
@@ -487,6 +490,228 @@ export async function registerRoutes(app: Express): Promise<Server> {
         connected: false,
         error: error.message
       });
+    }
+  });
+
+  // OAuth routes - Gmail
+  app.get("/api/oauth/gmail/authorize", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const settings = await storage.getUserSettings(userId);
+
+      if (!settings?.gmailClientId || !settings?.gmailClientSecret) {
+        return res.status(400).json({ message: "Gmail OAuth credentials not configured. Please configure them in settings first." });
+      }
+
+      const redirectUri = `${process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}` : "http://localhost:5000"}/api/oauth/gmail/callback`;
+      const state = crypto.randomBytes(32).toString('base64url');
+      
+      req.session!.gmailState = state;
+      
+      const authUrl = gmailService.getAuthUrl(settings.gmailClientId, settings.gmailClientSecret, redirectUri, state);
+
+      res.json({ authUrl });
+    } catch (error: any) {
+      console.error("Error generating Gmail auth URL:", error);
+      res.status(500).json({ message: error.message || "Failed to generate Gmail auth URL" });
+    }
+  });
+
+  app.get("/api/oauth/gmail/callback", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { code, state } = req.query;
+
+      const storedState = req.session?.gmailState;
+      delete req.session!.gmailState;
+
+      if (!code || typeof code !== 'string') {
+        return res.status(400).json({ message: "Authorization code missing" });
+      }
+
+      if (!state || !storedState || state !== storedState) {
+        return res.status(400).json({ message: "Invalid state parameter - possible CSRF attack" });
+      }
+
+      const settings = await storage.getUserSettings(userId);
+      if (!settings?.gmailClientId || !settings?.gmailClientSecret) {
+        return res.status(400).json({ message: "Gmail OAuth credentials not configured" });
+      }
+
+      const redirectUri = `${process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}` : "http://localhost:5000"}/api/oauth/gmail/callback`;
+      const tokens = await gmailService.getTokenFromCode(code, settings.gmailClientId, settings.gmailClientSecret, redirectUri);
+
+      const expiresAt = tokens.expiry_date ? new Date(tokens.expiry_date) : new Date(Date.now() + 3600 * 1000);
+
+      const existingToken = await storage.getOAuthToken(userId, 'gmail');
+      if (existingToken) {
+        await storage.updateOAuthToken(userId, 'gmail', {
+          accessToken: tokens.access_token!,
+          refreshToken: tokens.refresh_token || existingToken.refreshToken,
+          expiresAt,
+          scope: tokens.scope,
+        });
+      } else {
+        await storage.createOAuthToken({
+          userId,
+          provider: 'gmail',
+          accessToken: tokens.access_token!,
+          refreshToken: tokens.refresh_token || null,
+          expiresAt,
+          scope: tokens.scope,
+        });
+      }
+
+      await storage.updateUserSettings(userId, { gmailConnected: 1 });
+
+      res.redirect('/settings?gmail=connected');
+    } catch (error: any) {
+      console.error("Error handling Gmail OAuth callback:", error);
+      res.redirect('/settings?gmail=error');
+    }
+  });
+
+  app.post("/api/oauth/gmail/disconnect", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      await storage.deleteOAuthToken(userId, 'gmail');
+      await storage.updateUserSettings(userId, { gmailConnected: 0 });
+      res.json({ message: "Gmail disconnected successfully" });
+    } catch (error: any) {
+      console.error("Error disconnecting Gmail:", error);
+      res.status(500).json({ message: error.message || "Failed to disconnect Gmail" });
+    }
+  });
+
+  // OAuth routes - LinkedIn
+  app.get("/api/oauth/linkedin/authorize", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const settings = await storage.getUserSettings(userId);
+
+      if (!settings?.linkedinClientId || !settings?.linkedinClientSecret) {
+        return res.status(400).json({ message: "LinkedIn OAuth credentials not configured. Please configure them in settings first." });
+      }
+
+      const redirectUri = `${process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}` : "http://localhost:5000"}/api/oauth/linkedin/callback`;
+      const state = crypto.randomBytes(32).toString('base64url');
+      
+      req.session!.linkedinState = state;
+      
+      const authUrl = linkedinService.getAuthUrl(settings.linkedinClientId, redirectUri, state);
+      res.json({ authUrl });
+    } catch (error: any) {
+      console.error("Error generating LinkedIn auth URL:", error);
+      res.status(500).json({ message: error.message || "Failed to generate LinkedIn auth URL" });
+    }
+  });
+
+  app.get("/api/oauth/linkedin/callback", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { code, state } = req.query;
+
+      const storedState = req.session?.linkedinState;
+      delete req.session!.linkedinState;
+
+      if (!code || typeof code !== 'string') {
+        return res.status(400).json({ message: "Authorization code missing" });
+      }
+
+      if (!state || !storedState || state !== storedState) {
+        return res.status(400).json({ message: "Invalid state parameter - possible CSRF attack" });
+      }
+
+      const settings = await storage.getUserSettings(userId);
+      if (!settings?.linkedinClientId || !settings?.linkedinClientSecret) {
+        return res.status(400).json({ message: "LinkedIn OAuth credentials not configured" });
+      }
+
+      const redirectUri = `${process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}` : "http://localhost:5000"}/api/oauth/linkedin/callback`;
+      const tokens = await linkedinService.getTokenFromCode(code, settings.linkedinClientId, settings.linkedinClientSecret, redirectUri);
+
+      const expiresAt = new Date(Date.now() + (tokens.expires_in || 5184000) * 1000);
+
+      const existingToken = await storage.getOAuthToken(userId, 'linkedin');
+      if (existingToken) {
+        await storage.updateOAuthToken(userId, 'linkedin', {
+          accessToken: tokens.access_token,
+          expiresAt,
+          scope: tokens.scope || 'openid profile email w_member_social',
+        });
+      } else {
+        await storage.createOAuthToken({
+          userId,
+          provider: 'linkedin',
+          accessToken: tokens.access_token,
+          refreshToken: null,
+          expiresAt,
+          scope: tokens.scope || 'openid profile email w_member_social',
+        });
+      }
+
+      await storage.updateUserSettings(userId, { linkedinConnected: 1 });
+
+      res.redirect('/settings?linkedin=connected');
+    } catch (error: any) {
+      console.error("Error handling LinkedIn OAuth callback:", error);
+      res.redirect('/settings?linkedin=error');
+    }
+  });
+
+  app.post("/api/oauth/linkedin/disconnect", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      await storage.deleteOAuthToken(userId, 'linkedin');
+      await storage.updateUserSettings(userId, { linkedinConnected: 0 });
+      res.json({ message: "LinkedIn disconnected successfully" });
+    } catch (error: any) {
+      console.error("Error disconnecting LinkedIn:", error);
+      res.status(500).json({ message: error.message || "Failed to disconnect LinkedIn" });
+    }
+  });
+
+  // Gmail API routes - Sync emails
+  app.post("/api/gmail/sync", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      
+      const settings = await storage.getUserSettings(userId);
+      const token = await storage.getOAuthToken(userId, 'gmail');
+
+      if (!settings?.gmailClientId || !settings?.gmailClientSecret || !token) {
+        return res.status(400).json({ message: "Gmail not connected" });
+      }
+
+      const gmail = await gmailService.getGmailClient(
+        token.accessToken,
+        token.refreshToken,
+        settings.gmailClientId,
+        settings.gmailClientSecret
+      );
+
+      const messages = await gmailService.listMessages(gmail, 20);
+      
+      const syncedEmails = [];
+      for (const message of messages) {
+        const fullMessage = await gmailService.getMessage(gmail, message.id);
+        const parsed = gmailService.parseEmailMessage(fullMessage);
+
+        const email = await storage.createEmailThread({
+          sender: parsed.from.split('<')[0].trim(),
+          senderEmail: parsed.from.match(/<(.+)>/)?.[1] || parsed.from,
+          subject: parsed.subject,
+          preview: parsed.snippet,
+          userId,
+        });
+
+        syncedEmails.push(email);
+      }
+
+      res.json({ message: "Emails synced successfully", count: syncedEmails.length, emails: syncedEmails });
+    } catch (error: any) {
+      console.error("Error syncing Gmail:", error);
+      res.status(500).json({ message: error.message || "Failed to sync Gmail" });
     }
   });
 

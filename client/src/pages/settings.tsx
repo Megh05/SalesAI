@@ -16,6 +16,10 @@ import type { UserSettings } from "@shared/schema";
 const settingsSchema = z.object({
   openrouterApiKey: z.string().optional(),
   aiModel: z.string().optional(),
+  gmailClientId: z.string().optional(),
+  gmailClientSecret: z.string().optional(),
+  linkedinClientId: z.string().optional(),
+  linkedinClientSecret: z.string().optional(),
 });
 
 type SettingsFormData = z.infer<typeof settingsSchema>;
@@ -23,6 +27,8 @@ type SettingsFormData = z.infer<typeof settingsSchema>;
 export default function Settings() {
   const { toast } = useToast();
   const [showApiKey, setShowApiKey] = useState(false);
+  const [showGmailSecret, setShowGmailSecret] = useState(false);
+  const [showLinkedInSecret, setShowLinkedInSecret] = useState(false);
   const [testing, setTesting] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<{
     connected: boolean;
@@ -38,6 +44,10 @@ export default function Settings() {
     values: {
       openrouterApiKey: settings?.openrouterApiKey || "",
       aiModel: settings?.aiModel || "mistralai/mistral-7b-instruct",
+      gmailClientId: settings?.gmailClientId || "",
+      gmailClientSecret: settings?.gmailClientSecret || "",
+      linkedinClientId: settings?.linkedinClientId || "",
+      linkedinClientSecret: settings?.linkedinClientSecret || "",
     },
   });
 
@@ -258,15 +268,148 @@ export default function Settings() {
               <CardTitle>Gmail Integration</CardTitle>
               <CardDescription>Connect your Gmail account to sync emails</CardDescription>
             </div>
-            <Badge variant="secondary" data-testid="badge-gmail-status">
-              {settings?.gmailConnected ? "Connected" : "Not Connected"}
+            <Badge variant={settings?.gmailConnected ? "default" : "secondary"} className={settings?.gmailConnected ? "bg-green-500" : ""} data-testid="badge-gmail-status">
+              {settings?.gmailConnected ? (
+                <>
+                  <CheckCircle2 className="w-3 h-3 mr-1" />
+                  Connected
+                </>
+              ) : (
+                "Not Connected"
+              )}
             </Badge>
           </div>
         </CardHeader>
-        <CardContent>
-          <Button variant="outline" disabled data-testid="button-connect-gmail">
-            Connect Gmail (Coming Soon)
-          </Button>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="gmailClientId">Gmail Client ID</Label>
+            <Input
+              id="gmailClientId"
+              placeholder="123456789-abcdef.apps.googleusercontent.com"
+              {...form.register("gmailClientId")}
+              data-testid="input-gmail-client-id"
+            />
+            <p className="text-sm text-muted-foreground">
+              Get your OAuth credentials from{" "}
+              <a
+                href="https://console.cloud.google.com/apis/credentials"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline"
+              >
+                Google Cloud Console
+              </a>
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="gmailClientSecret">Gmail Client Secret</Label>
+            <div className="relative">
+              <Input
+                id="gmailClientSecret"
+                type={showGmailSecret ? "text" : "password"}
+                placeholder="GOCSPX-..."
+                {...form.register("gmailClientSecret")}
+                data-testid="input-gmail-client-secret"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute right-0 top-0 h-full px-3"
+                onClick={() => setShowGmailSecret(!showGmailSecret)}
+                data-testid="button-toggle-gmail-secret"
+              >
+                {showGmailSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            {!settings?.gmailConnected ? (
+              <Button
+                type="button"
+                variant="default"
+                onClick={async () => {
+                  const hasCredentials = form.getValues("gmailClientId") && form.getValues("gmailClientSecret");
+                  if (!hasCredentials) {
+                    toast({
+                      title: "Missing Credentials",
+                      description: "Please save your Gmail OAuth credentials first.",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                  
+                  try {
+                    const res = await apiRequest("GET", "/api/oauth/gmail/authorize");
+                    const data = await res.json();
+                    if (data.authUrl) {
+                      window.open(data.authUrl, "_blank");
+                    }
+                  } catch (error: any) {
+                    toast({
+                      title: "Connection Error",
+                      description: error.message || "Failed to initiate Gmail OAuth",
+                      variant: "destructive",
+                    });
+                  }
+                }}
+                data-testid="button-connect-gmail"
+              >
+                Connect Gmail
+              </Button>
+            ) : (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={async () => {
+                    try {
+                      await apiRequest("POST", "/api/gmail/sync");
+                      queryClient.invalidateQueries({ queryKey: ["/api/emails"] });
+                      toast({
+                        title: "Sync Complete",
+                        description: "Gmail emails synced successfully",
+                      });
+                    } catch (error: any) {
+                      toast({
+                        title: "Sync Failed",
+                        description: error.message || "Failed to sync Gmail",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                  data-testid="button-sync-gmail"
+                >
+                  Sync Emails
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={async () => {
+                    try {
+                      await apiRequest("POST", "/api/oauth/gmail/disconnect");
+                      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+                      toast({
+                        title: "Disconnected",
+                        description: "Gmail disconnected successfully",
+                      });
+                    } catch (error: any) {
+                      toast({
+                        title: "Error",
+                        description: error.message || "Failed to disconnect Gmail",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                  data-testid="button-disconnect-gmail"
+                >
+                  Disconnect
+                </Button>
+              </>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -276,17 +419,129 @@ export default function Settings() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>LinkedIn Integration</CardTitle>
-              <CardDescription>Connect your LinkedIn account to sync messages</CardDescription>
+              <CardDescription>Connect your LinkedIn account for profile enrichment</CardDescription>
             </div>
-            <Badge variant="secondary" data-testid="badge-linkedin-status">
-              {settings?.linkedinConnected ? "Connected" : "Not Connected"}
+            <Badge variant={settings?.linkedinConnected ? "default" : "secondary"} className={settings?.linkedinConnected ? "bg-green-500" : ""} data-testid="badge-linkedin-status">
+              {settings?.linkedinConnected ? (
+                <>
+                  <CheckCircle2 className="w-3 h-3 mr-1" />
+                  Connected
+                </>
+              ) : (
+                "Not Connected"
+              )}
             </Badge>
           </div>
         </CardHeader>
-        <CardContent>
-          <Button variant="outline" disabled data-testid="button-connect-linkedin">
-            Connect LinkedIn (Coming Soon)
-          </Button>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="linkedinClientId">LinkedIn Client ID</Label>
+            <Input
+              id="linkedinClientId"
+              placeholder="77xxxxxxxxxxxxx"
+              {...form.register("linkedinClientId")}
+              data-testid="input-linkedin-client-id"
+            />
+            <p className="text-sm text-muted-foreground">
+              Get your OAuth credentials from{" "}
+              <a
+                href="https://www.linkedin.com/developers/apps"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline"
+              >
+                LinkedIn Developer Portal
+              </a>
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="linkedinClientSecret">LinkedIn Client Secret</Label>
+            <div className="relative">
+              <Input
+                id="linkedinClientSecret"
+                type={showLinkedInSecret ? "text" : "password"}
+                placeholder="..."
+                {...form.register("linkedinClientSecret")}
+                data-testid="input-linkedin-client-secret"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute right-0 top-0 h-full px-3"
+                onClick={() => setShowLinkedInSecret(!showLinkedInSecret)}
+                data-testid="button-toggle-linkedin-secret"
+              >
+                {showLinkedInSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            {!settings?.linkedinConnected ? (
+              <Button
+                type="button"
+                variant="default"
+                onClick={async () => {
+                  const hasCredentials = form.getValues("linkedinClientId") && form.getValues("linkedinClientSecret");
+                  if (!hasCredentials) {
+                    toast({
+                      title: "Missing Credentials",
+                      description: "Please save your LinkedIn OAuth credentials first.",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                  
+                  try {
+                    const res = await apiRequest("GET", "/api/oauth/linkedin/authorize");
+                    const data = await res.json();
+                    if (data.authUrl) {
+                      window.open(data.authUrl, "_blank");
+                    }
+                  } catch (error: any) {
+                    toast({
+                      title: "Connection Error",
+                      description: error.message || "Failed to initiate LinkedIn OAuth",
+                      variant: "destructive",
+                    });
+                  }
+                }}
+                data-testid="button-connect-linkedin"
+              >
+                Connect LinkedIn
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={async () => {
+                  try {
+                    await apiRequest("POST", "/api/oauth/linkedin/disconnect");
+                    queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+                    toast({
+                      title: "Disconnected",
+                      description: "LinkedIn disconnected successfully",
+                      });
+                  } catch (error: any) {
+                    toast({
+                      title: "Error",
+                      description: error.message || "Failed to disconnect LinkedIn",
+                      variant: "destructive",
+                    });
+                  }
+                }}
+                data-testid="button-disconnect-linkedin"
+              >
+                Disconnect
+              </Button>
+            )}
+          </div>
+
+          <p className="text-sm text-muted-foreground border-l-2 border-amber-500 pl-3 py-1">
+            Note: LinkedIn Messaging API is partner-restricted. This integration provides profile data access only.
+          </p>
         </CardContent>
       </Card>
     </div>
