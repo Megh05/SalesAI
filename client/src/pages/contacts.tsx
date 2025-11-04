@@ -27,9 +27,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-const contactFormSchema = insertContactSchema.omit({ userId: true }).extend({
-  tags: z.string().optional(),
-  linkedinProfileUrl: z.string().optional(),
+const contactFormSchema = z.object({
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
+  email: z.string().email("Invalid email address"),
+  phone: z.string().optional(),
+  position: z.string().optional(),
+  companyId: z.string().nullable().optional(),
 });
 
 type ContactFormData = z.infer<typeof contactFormSchema>;
@@ -51,11 +55,7 @@ export default function Contacts() {
 
   const createMutation = useMutation({
     mutationFn: async (data: ContactFormData) => {
-      const formattedData = {
-        ...data,
-        tags: data.tags ? data.tags.split(",").map(t => t.trim()) : [],
-      };
-      const res = await apiRequest("POST", "/api/contacts", formattedData);
+      const res = await apiRequest("POST", "/api/contacts", data);
       if (!res.ok) throw new Error("Failed to create contact");
       return res.json();
     },
@@ -71,13 +71,7 @@ export default function Contacts() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<ContactFormData> }) => {
-      const formattedData = {
-        ...data,
-        tags: data.tags !== undefined 
-          ? (data.tags.trim() ? data.tags.split(",").map(t => t.trim()) : [])
-          : undefined,
-      };
-      const res = await apiRequest("PATCH", `/api/contacts/${id}`, formattedData);
+      const res = await apiRequest("PATCH", `/api/contacts/${id}`, data);
       if (!res.ok) throw new Error("Failed to update contact");
       return res.json();
     },
@@ -107,17 +101,12 @@ export default function Contacts() {
   });
 
   const filteredContacts = contacts.filter((contact) =>
-    contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    `${contact.firstName} ${contact.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
     contact.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
+  const getInitials = (firstName: string, lastName: string) => {
+    return `${firstName[0]}${lastName[0]}`.toUpperCase();
   };
 
   const getCompanyName = (companyId: string | null) => {
@@ -183,39 +172,19 @@ export default function Contacts() {
                   <div className="flex items-start gap-4">
                     <Avatar className="h-12 w-12">
                       {contact.linkedinImageUrl ? (
-                        <img src={contact.linkedinImageUrl} alt={contact.name} className="object-cover" />
+                        <img src={contact.linkedinImageUrl} alt={`${contact.firstName} ${contact.lastName}`} className="object-cover" />
                       ) : (
-                        <AvatarFallback>{getInitials(contact.name)}</AvatarFallback>
+                        <AvatarFallback>{getInitials(contact.firstName, contact.lastName)}</AvatarFallback>
                       )}
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold mb-1 truncate">{contact.name}</h3>
-                      {contact.role && <p className="text-sm text-muted-foreground truncate">{contact.role}</p>}
+                      <h3 className="font-semibold mb-1 truncate">{contact.firstName} {contact.lastName}</h3>
+                      {contact.position && <p className="text-sm text-muted-foreground truncate">{contact.position}</p>}
                       {contact.companyId && (
                         <p className="text-sm text-muted-foreground truncate">{getCompanyName(contact.companyId)}</p>
                       )}
-                      {contact.linkedinProfileUrl && (
-                        <a 
-                          href={contact.linkedinProfileUrl} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-xs text-blue-600 hover:underline"
-                        >
-                          View LinkedIn Profile
-                        </a>
-                      )}
-                    </div>
+                      </div>
                   </div>
-
-                  {contact.tags && contact.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {contact.tags.map((tag) => (
-                        <Badge key={tag} variant="secondary" className="text-xs">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
 
                   <div className="space-y-2 pt-3 border-t">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -250,34 +219,6 @@ export default function Contacts() {
                       Delete
                     </Button>
                   </div>
-                  
-                  {!contact.linkedinProfileUrl && (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="w-full mt-2"
-                      onClick={async () => {
-                        const url = prompt("Enter LinkedIn Profile URL:");
-                        if (url) {
-                          try {
-                            await apiRequest("POST", `/api/contacts/${contact.id}/enrich-linkedin`, {
-                              linkedinProfileUrl: url
-                            });
-                            queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
-                            toast({ title: "Success", description: "Contact enriched with LinkedIn data" });
-                          } catch (error: any) {
-                            toast({ 
-                              title: "Error", 
-                              description: error.message || "Failed to enrich contact",
-                              variant: "destructive"
-                            });
-                          }
-                        }
-                      }}
-                    >
-                      Add LinkedIn Profile
-                    </Button>
-                  )}
                 </div>
               </CardContent>
             </Card>
@@ -301,7 +242,7 @@ export default function Contacts() {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete {deletingContact?.name} and all associated data.
+              This will permanently delete {deletingContact?.firstName} {deletingContact?.lastName} and all associated data.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -333,21 +274,19 @@ function ContactFormDialog({
   const form = useForm<ContactFormData>({
     resolver: zodResolver(contactFormSchema),
     defaultValues: contact ? {
-      name: contact.name,
+      firstName: contact.firstName,
+      lastName: contact.lastName,
       email: contact.email,
       phone: contact.phone || "",
-      role: contact.role || "",
+      position: contact.position || "",
       companyId: contact.companyId || "",
-      tags: contact.tags?.join(", ") || "",
-      linkedinProfileUrl: contact.linkedinProfileUrl || "",
     } : {
-      name: "",
+      firstName: "",
+      lastName: "",
       email: "",
       phone: "",
-      role: "",
+      position: "",
       companyId: "",
-      tags: "",
-      linkedinProfileUrl: "",
     },
   });
 
@@ -361,19 +300,35 @@ function ContactFormDialog({
       </DialogHeader>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <FormField
-            control={form.control}
-            name="name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Name</FormLabel>
-                <FormControl>
-                  <Input placeholder="John Doe" {...field} data-testid="input-contact-name" />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="firstName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>First Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="John" {...field} data-testid="input-contact-firstname" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="lastName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Last Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Doe" {...field} data-testid="input-contact-lastname" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
 
           <FormField
             control={form.control}
@@ -406,12 +361,12 @@ function ContactFormDialog({
 
             <FormField
               control={form.control}
-              name="role"
+              name="position"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Role</FormLabel>
+                  <FormLabel>Position</FormLabel>
                   <FormControl>
-                    <Input placeholder="CEO" {...field} value={field.value || ""} data-testid="input-contact-role" />
+                    <Input placeholder="CEO" {...field} value={field.value || ""} data-testid="input-contact-position" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -443,34 +398,6 @@ function ContactFormDialog({
                     ))}
                   </SelectContent>
                 </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="tags"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Tags (comma-separated)</FormLabel>
-                <FormControl>
-                  <Input placeholder="Decision Maker, Hot Lead" {...field} value={field.value || ""} data-testid="input-contact-tags" />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="linkedinProfileUrl"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>LinkedIn Profile URL (optional)</FormLabel>
-                <FormControl>
-                  <Input placeholder="https://linkedin.com/in/username" {...field} value={field.value || ""} data-testid="input-contact-linkedin" />
-                </FormControl>
                 <FormMessage />
               </FormItem>
             )}
