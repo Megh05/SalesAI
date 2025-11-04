@@ -68,7 +68,11 @@ export default function Leads() {
 
   const createMutation = useMutation({
     mutationFn: async (data: LeadFormData) => {
-      const res = await apiRequest("POST", "/api/leads", data);
+      const payload = {
+        ...data,
+        value: data.value ? parseInt(data.value as any) : null,
+      };
+      const res = await apiRequest("POST", "/api/leads", payload);
       if (!res.ok) throw new Error("Failed to create lead");
       return res.json();
     },
@@ -84,7 +88,11 @@ export default function Leads() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<LeadFormData> }) => {
-      const res = await apiRequest("PATCH", `/api/leads/${id}`, data);
+      const payload = {
+        ...data,
+        value: data.value ? parseInt(data.value as any) : null,
+      };
+      const res = await apiRequest("PATCH", `/api/leads/${id}`, payload);
       if (!res.ok) throw new Error("Failed to update lead");
       return res.json();
     },

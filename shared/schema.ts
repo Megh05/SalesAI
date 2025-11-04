@@ -108,6 +108,9 @@ export const insertLeadSchema = createInsertSchema(leads).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  value: z.union([z.string(), z.number()]).optional().nullable(),
+  source: z.string().optional().nullable(),
 });
 
 export type Lead = typeof leads.$inferSelect;
