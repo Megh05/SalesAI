@@ -380,14 +380,17 @@ function ContactFormDialog({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Company</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value || ""}>
+                <Select 
+                  onValueChange={(value) => field.onChange(value === "none" ? null : value)} 
+                  value={field.value || "none"}
+                >
                   <FormControl>
                     <SelectTrigger data-testid="select-contact-company">
                       <SelectValue placeholder="Select a company" />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="">No company</SelectItem>
+                    <SelectItem value="none">No company</SelectItem>
                     {companies.map((company) => (
                       <SelectItem key={company.id} value={company.id}>
                         {company.name}
