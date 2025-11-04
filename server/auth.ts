@@ -1,27 +1,40 @@
+
 import bcrypt from "bcryptjs";
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import session from "express-session";
 import type { Express, RequestHandler } from "express";
 import connectPg from "connect-pg-simple";
+import connectSqlite from "connect-sqlite3";
 import { db } from "./db";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
 export function getSession() {
-  const sessionSecret = process.env.SESSION_SECRET;
-  if (!sessionSecret) {
-    throw new Error("SESSION_SECRET environment variable is required for secure session management");
+  const sessionSecret = process.env.SESSION_SECRET || "dev-secret-key-change-in-production";
+  const sessionTtl = 7 * 24 * 60 * 60 * 1000;
+  const isLocal = !process.env.DATABASE_URL;
+
+  let sessionStore;
+
+  if (isLocal) {
+    // Use SQLite for sessions in local development
+    const SqliteStore = connectSqlite(session);
+    sessionStore = new SqliteStore({
+      db: "sessions.db",
+      dir: "./",
+    });
+  } else {
+    // Use PostgreSQL for sessions in production
+    const pgStore = connectPg(session);
+    sessionStore = new pgStore({
+      conString: process.env.DATABASE_URL,
+      createTableIfMissing: false,
+      ttl: sessionTtl,
+      tableName: "sessions",
+    });
   }
 
-  const sessionTtl = 7 * 24 * 60 * 60 * 1000;
-  const pgStore = connectPg(session);
-  const sessionStore = new pgStore({
-    conString: process.env.DATABASE_URL,
-    createTableIfMissing: false,
-    ttl: sessionTtl,
-    tableName: "sessions",
-  });
   return session({
     secret: sessionSecret,
     store: sessionStore,
