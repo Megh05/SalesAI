@@ -360,14 +360,17 @@ function LeadFormDialog({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Company</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value || ""}>
+                <Select 
+                  onValueChange={(value) => field.onChange(value === "none" ? null : value)} 
+                  value={field.value || "none"}
+                >
                   <FormControl>
                     <SelectTrigger data-testid="select-lead-company">
                       <SelectValue placeholder="Select a company (optional)" />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="">No company</SelectItem>
+                    <SelectItem value="none">No company</SelectItem>
                     {companies.map((company) => (
                       <SelectItem key={company.id} value={company.id}>
                         {company.name}
