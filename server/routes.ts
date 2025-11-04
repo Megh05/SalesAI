@@ -394,8 +394,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const classification = await aiService.classifyEmail(userId, {
         subject: email.subject,
-        from: email.senderEmail,
-        preview: email.preview || "",
+        from: email.fromName || email.fromEmail,
+        preview: email.snippet || "",
       });
 
       if (!classification) {
@@ -460,8 +460,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const result = await aiService.summarizeEmail(userId, {
         subject: email.subject,
-        from: email.senderEmail,
-        body: email.preview || "",
+        from: email.fromName || email.fromEmail,
+        body: email.snippet || "",
       });
 
       if (!result) {
@@ -491,10 +491,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const leadData = await aiService.extractLeadData(userId, {
-        from: email.sender,
-        senderEmail: email.senderEmail,
+        from: email.fromName || email.fromEmail,
+        senderEmail: email.fromEmail,
         subject: email.subject,
-        preview: email.preview || "",
+        preview: email.snippet || "",
       });
 
       if (!leadData) {
@@ -519,10 +519,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const leadData = await aiService.extractLeadData(userId, {
-        from: email.sender,
-        senderEmail: email.senderEmail,
+        from: email.fromName || email.fromEmail,
+        senderEmail: email.fromEmail,
         subject: email.subject,
-        preview: email.preview || "",
+        preview: email.snippet || "",
       });
 
       if (!leadData) {
@@ -930,10 +930,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const parsed = gmailService.parseEmailMessage(fullMessage);
 
         const email = await storage.createEmailThread({
-          sender: parsed.from.split('<')[0].trim(),
-          senderEmail: parsed.from.match(/<(.+)>/)?.[1] || parsed.from,
+          fromName: parsed.from.split('<')[0].trim(),
+          fromEmail: parsed.from.match(/<(.+)>/)?.[1] || parsed.from,
           subject: parsed.subject,
-          preview: parsed.snippet,
+          snippet: parsed.snippet,
           userId,
         });
 
@@ -954,38 +954,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const sampleEmails = [
         {
-          sender: "John Smith",
-          senderEmail: "john.smith@techcorp.com",
+          fromName: "John Smith",
+          fromEmail: "john.smith@techcorp.com",
           subject: "Interested in your B2B sales automation platform",
-          preview: "Hi, I saw your product and I'm very interested in learning more about how it can help streamline our sales process...",
+          snippet: "Hi, I saw your product and I'm very interested in learning more about how it can help streamline our sales process...",
           userId,
         },
         {
-          sender: "Sarah Johnson",
-          senderEmail: "sarah.j@startup.io",
+          fromName: "Sarah Johnson",
+          fromEmail: "sarah.j@startup.io",
           subject: "Follow-up on our demo call",
-          preview: "Thanks for the great demo yesterday! Our team is excited about the AI features. Can we schedule a follow-up to discuss pricing?",
+          snippet: "Thanks for the great demo yesterday! Our team is excited about the AI features. Can we schedule a follow-up to discuss pricing?",
           userId,
         },
         {
-          sender: "Mike Chen",
-          senderEmail: "m.chen@enterprise.com",
+          fromName: "Mike Chen",
+          fromEmail: "m.chen@enterprise.com",
           subject: "Pricing and contract terms",
-          preview: "We're ready to move forward. Could you send over the pricing details for the enterprise plan and the contract for review?",
+          snippet: "We're ready to move forward. Could you send over the pricing details for the enterprise plan and the contract for review?",
           userId,
         },
         {
-          sender: "Emily Davis",
-          senderEmail: "emily@smallbiz.com",
+          fromName: "Emily Davis",
+          fromEmail: "emily@smallbiz.com",
           subject: "Meeting request - Product demo",
-          preview: "I'd like to schedule a product demo for our sales team next week. Are you available Tuesday or Wednesday afternoon?",
+          snippet: "I'd like to schedule a product demo for our sales team next week. Are you available Tuesday or Wednesday afternoon?",
           userId,
         },
         {
-          sender: "Robert Lee",
-          senderEmail: "rob.lee@bigcompany.com",
+          fromName: "Robert Lee",
+          fromEmail: "rob.lee@bigcompany.com",
           subject: "Question about integration capabilities",
-          preview: "Hi, we're using Salesforce and HubSpot. Does your platform integrate with these systems?",
+          snippet: "Hi, we're using Salesforce and HubSpot. Does your platform integrate with these systems?",
           userId,
         },
       ];

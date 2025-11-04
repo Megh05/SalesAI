@@ -15,7 +15,7 @@ export class GmailService {
 
   getAuthUrl(clientId: string, clientSecret: string, redirectUri: string, state: string): string {
     const oauth2Client = this.createOAuth2Client(clientId, clientSecret, redirectUri);
-    
+
     const scopes = [
       'https://www.googleapis.com/auth/gmail.readonly',
       'https://www.googleapis.com/auth/gmail.send',
@@ -38,7 +38,7 @@ export class GmailService {
 
   async getGmailClient(accessToken: string, refreshToken: string | null, clientId: string, clientSecret: string) {
     const oauth2Client = new google.auth.OAuth2(clientId, clientSecret);
-    
+
     oauth2Client.setCredentials({
       access_token: accessToken,
       refresh_token: refreshToken || undefined,
@@ -103,7 +103,7 @@ export class GmailService {
     const getHeader = (name: string) => headers.find((h: any) => h.name.toLowerCase() === name.toLowerCase())?.value || '';
 
     let body = '';
-    
+
     if (message.payload?.parts) {
       const textPart = message.payload.parts.find((part: any) => part.mimeType === 'text/plain' || part.mimeType === 'text/html');
       if (textPart?.body?.data) {

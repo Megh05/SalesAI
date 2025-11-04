@@ -148,7 +148,7 @@ export const emailThreads = sqliteTable("email_threads", {
   messageId: text("message_id"),
   contactId: text("contact_id").references(() => contacts.id, { onDelete: "set null" }),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  receivedAt: integer("received_at", { mode: "timestamp" }).notNull(),
+  receivedAt: integer("received_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
