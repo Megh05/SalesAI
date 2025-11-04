@@ -703,7 +703,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           accessToken: tokens.access_token,
           refreshToken: null,
           expiresAt,
-          scope: tokens.scope || 'openid profile email w_member_social',
+          scope: tokens.scope || 'openid profile email',
         });
       }
 

@@ -609,7 +609,7 @@ export default function Settings() {
           </div>
 
           <p className="text-sm text-muted-foreground border-l-2 border-amber-500 pl-3 py-1">
-            Note: LinkedIn Messaging API is partner-restricted. This integration provides profile data access only.
+            Note: This integration provides access to LinkedIn profile data (name, email, photo) for contact enrichment. Advanced features like posting and messaging require LinkedIn Partner status.
           </p>
         </CardContent>
       </Card>

@@ -2,7 +2,7 @@ import axios from 'axios';
 
 export class LinkedInService {
   getAuthUrl(clientId: string, redirectUri: string, state: string): string {
-    const scope = 'openid profile email w_member_social';
+    const scope = 'openid profile email';
     
     return `https://www.linkedin.com/oauth/v2/authorization?` +
       `response_type=code&` +
