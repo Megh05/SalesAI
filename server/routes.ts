@@ -948,58 +948,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Development: Seed sample emails for testing
-  app.post("/api/dev/seed-emails", isAuthenticated, async (req: AuthRequest, res: Response) => {
+  app.post("/api/dev/seed-emails", isAuthenticated, async (req: AuthRequest, res) => {
     try {
-      const userId = (req.user as any).id;
+      const userId = req.user.id;
+      const userEmail = req.user.email;
 
       const sampleEmails = [
         {
+          subject: "Partnership Opportunity",
+          snippet: "I'd like to discuss a potential partnership...",
+          fromEmail: "john@techcorp.com",
           fromName: "John Smith",
-          fromEmail: "john.smith@techcorp.com",
-          subject: "Interested in your B2B sales automation platform",
-          snippet: "Hi, I saw your product and I'm very interested in learning more about how it can help streamline our sales process...",
+          toEmail: userEmail,
+          aiSummary: "Partnership inquiry from TechCorp",
+          aiClassification: "opportunity",
+          aiConfidence: 85,
+          threadId: "thread_1",
+          messageId: "msg_1",
           userId,
+          receivedAt: new Date(),
         },
         {
+          subject: "Quick Question",
+          snippet: "Can you help me with...",
+          fromEmail: "sarah@startup.io",
           fromName: "Sarah Johnson",
-          fromEmail: "sarah.j@startup.io",
-          subject: "Follow-up on our demo call",
-          snippet: "Thanks for the great demo yesterday! Our team is excited about the AI features. Can we schedule a follow-up to discuss pricing?",
+          toEmail: userEmail,
+          aiSummary: "Support request",
+          aiClassification: "question",
+          aiConfidence: 90,
+          threadId: "thread_2",
+          messageId: "msg_2",
           userId,
-        },
-        {
-          fromName: "Mike Chen",
-          fromEmail: "m.chen@enterprise.com",
-          subject: "Pricing and contract terms",
-          snippet: "We're ready to move forward. Could you send over the pricing details for the enterprise plan and the contract for review?",
-          userId,
-        },
-        {
-          fromName: "Emily Davis",
-          fromEmail: "emily@smallbiz.com",
-          subject: "Meeting request - Product demo",
-          snippet: "I'd like to schedule a product demo for our sales team next week. Are you available Tuesday or Wednesday afternoon?",
-          userId,
-        },
-        {
-          fromName: "Robert Lee",
-          fromEmail: "rob.lee@bigcompany.com",
-          subject: "Question about integration capabilities",
-          snippet: "Hi, we're using Salesforce and HubSpot. Does your platform integrate with these systems?",
-          userId,
+          receivedAt: new Date(),
         },
       ];
 
-      const createdEmails = [];
       for (const email of sampleEmails) {
-        const created = await storage.createEmailThread(email);
-        createdEmails.push(created);
+        await storage.createEmailThread(email);
       }
 
-      res.json({ message: "Sample emails created", count: createdEmails.length, emails: createdEmails });
+      res.json({ message: "Sample emails seeded successfully" });
     } catch (error: any) {
       console.error("Error seeding emails:", error);
-      res.status(500).json({ message: error.message || "Failed to seed emails" });
+      res.status(500).json({ message: error.message });
     }
   });
 

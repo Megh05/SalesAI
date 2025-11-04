@@ -143,7 +143,7 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCompany(id: string, userId: string): Promise<boolean> {
     const result = await db.delete(companies).where(and(eq(companies.id, id), eq(companies.userId, userId)));
-    return result.rowCount !== null && result.rowCount > 0;
+    return result.changes > 0;
   }
 
   // Contact operations
@@ -176,7 +176,7 @@ export class DatabaseStorage implements IStorage {
 
   async deleteContact(id: string, userId: string): Promise<boolean> {
     const result = await db.delete(contacts).where(and(eq(contacts.id, id), eq(contacts.userId, userId)));
-    return result.rowCount !== null && result.rowCount > 0;
+    return result.changes > 0;
   }
 
   // Lead operations
@@ -205,7 +205,7 @@ export class DatabaseStorage implements IStorage {
 
   async deleteLead(id: string, userId: string): Promise<boolean> {
     const result = await db.delete(leads).where(and(eq(leads.id, id), eq(leads.userId, userId)));
-    return result.rowCount !== null && result.rowCount > 0;
+    return result.changes > 0;
   }
 
   // Activity operations
@@ -225,7 +225,7 @@ export class DatabaseStorage implements IStorage {
 
   async deleteActivity(id: string, userId: string): Promise<boolean> {
     const result = await db.delete(activities).where(and(eq(activities.id, id), eq(activities.userId, userId)));
-    return result.rowCount !== null && result.rowCount > 0;
+    return result.changes > 0;
   }
 
   // Email thread operations
@@ -311,7 +311,7 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .delete(oauthTokens)
       .where(and(eq(oauthTokens.userId, userId), eq(oauthTokens.provider, provider)));
-    return result.rowCount !== null && result.rowCount > 0;
+    return result.changes > 0;
   }
 }
 
