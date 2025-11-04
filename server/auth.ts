@@ -4,7 +4,6 @@ import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import session from "express-session";
 import type { Express, RequestHandler } from "express";
-import connectPg from "connect-pg-simple";
 import connectSqlite from "connect-sqlite3";
 import { db } from "./db";
 import { users } from "@shared/schema";
@@ -13,27 +12,12 @@ import { eq } from "drizzle-orm";
 export function getSession() {
   const sessionSecret = process.env.SESSION_SECRET || "dev-secret-key-change-in-production";
   const sessionTtl = 7 * 24 * 60 * 60 * 1000;
-  const isLocal = !process.env.DATABASE_URL;
 
-  let sessionStore;
-
-  if (isLocal) {
-    // Use SQLite for sessions in local development
-    const SqliteStore = connectSqlite(session);
-    sessionStore = new SqliteStore({
-      db: "sessions.db",
-      dir: "./",
-    });
-  } else {
-    // Use PostgreSQL for sessions in production
-    const pgStore = connectPg(session);
-    sessionStore = new pgStore({
-      conString: process.env.DATABASE_URL,
-      createTableIfMissing: false,
-      ttl: sessionTtl,
-      tableName: "sessions",
-    });
-  }
+  const SqliteStore = connectSqlite(session);
+  const sessionStore = new SqliteStore({
+    db: "sessions.db",
+    dir: "./",
+  });
 
   return session({
     secret: sessionSecret,
@@ -52,16 +36,11 @@ export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);
 }
 
-export async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  return bcrypt.compare(password, hash);
+export async function comparePasswords(plainPassword: string, hashedPassword: string): Promise<boolean> {
+  return bcrypt.compare(plainPassword, hashedPassword);
 }
 
-export async function setupAuth(app: Express) {
-  app.set("trust proxy", 1);
-  app.use(getSession());
-  app.use(passport.initialize());
-  app.use(passport.session());
-
+export function setupAuth(app: Express) {
   passport.use(
     new LocalStrategy(
       {
@@ -70,15 +49,18 @@ export async function setupAuth(app: Express) {
       },
       async (email, password, done) => {
         try {
-          const [user] = await db.select().from(users).where(eq(users.email, email));
+          const [user] = await db
+            .select()
+            .from(users)
+            .where(eq(users.email, email))
+            .limit(1);
 
           if (!user) {
             return done(null, false, { message: "Invalid email or password" });
           }
 
-          const isValid = await verifyPassword(password, user.password);
-
-          if (!isValid) {
+          const isValidPassword = await comparePasswords(password, user.password);
+          if (!isValidPassword) {
             return done(null, false, { message: "Invalid email or password" });
           }
 
@@ -91,22 +73,31 @@ export async function setupAuth(app: Express) {
     )
   );
 
-  passport.serializeUser((user: Express.User, cb) => {
-    cb(null, (user as any).id);
+  passport.serializeUser((user: any, done) => {
+    done(null, user.id);
   });
 
-  passport.deserializeUser(async (id: string, cb) => {
+  passport.deserializeUser(async (id: string, done) => {
     try {
-      const [user] = await db.select().from(users).where(eq(users.id, id));
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, id))
+        .limit(1);
+
       if (!user) {
-        return cb(new Error("User not found"));
+        return done(null, false);
       }
+
       const { password: _, ...userWithoutPassword } = user;
-      cb(null, userWithoutPassword);
+      done(null, userWithoutPassword);
     } catch (error) {
-      cb(error);
+      done(error);
     }
   });
+
+  app.use(passport.initialize());
+  app.use(passport.session());
 }
 
 export const isAuthenticated: RequestHandler = (req, res, next) => {
