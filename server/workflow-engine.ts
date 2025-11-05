@@ -197,12 +197,19 @@ export class WorkflowEngine {
   ): Promise<any> {
     const { title, description, value, status, contactId, companyId } = node.data;
 
+    // Skip if contactId is required but not provided or invalid
+    const resolvedContactId = contactId ? this.resolveVariable(contactId, context) : undefined;
+    if (!resolvedContactId || resolvedContactId.includes('{{')) {
+      console.warn('Skipping lead creation: contactId not provided or unresolved');
+      return { skipped: true, reason: 'contactId not provided or unresolved' };
+    }
+
     const leadData: InsertLead = {
-      title: this.resolveVariable(title, context),
-      description: this.resolveVariable(description, context),
+      title: this.resolveVariable(title, context) || 'Test Lead',
+      description: description ? this.resolveVariable(description, context) : undefined,
       value: value ? parseInt(this.resolveVariable(value, context)) : undefined,
       status: status || "prospect",
-      contactId: this.resolveVariable(contactId, context),
+      contactId: resolvedContactId,
       companyId: companyId ? this.resolveVariable(companyId, context) : undefined,
       userId: context.userId,
     };

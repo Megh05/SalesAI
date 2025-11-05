@@ -131,11 +131,15 @@ export default function WorkflowBuilder() {
         throw new Error("No workflow ID available");
       }
       const res = await apiRequest("POST", `/api/workflows/${workflow.id}/execute`, {
-        subject: "Test Email",
+        subject: "Partnership Inquiry - Test Execution",
         from: "test@example.com",
-        preview: "This is a test email for workflow execution",
+        preview: "This is a test email for workflow execution. Testing AI classification and automation.",
+        body: "Hi, I'm interested in discussing a potential partnership with your company.",
       });
-      if (!res.ok) throw new Error("Failed to execute workflow");
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to execute workflow");
+      }
       return res.json();
     },
     onSuccess: (data) => {
