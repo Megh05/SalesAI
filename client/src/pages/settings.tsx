@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { CheckCircle2, XCircle, Loader2, Eye, EyeOff } from "lucide-react";
 import type { UserSettings } from "@shared/schema";
+import { cn } from "@/lib/utils";
 
 const settingsSchema = z.object({
   openrouterApiKey: z.string().optional(),
@@ -400,14 +401,14 @@ export default function Settings() {
                       gmailClientId,
                       gmailClientSecret,
                     });
-                    
+
                     if (!saveRes.ok) {
                       throw new Error("Failed to save credentials");
                     }
 
                     // Wait for settings to be persisted
                     await queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
-                    
+
                     // Small delay to ensure database has persisted
                     await new Promise(resolve => setTimeout(resolve, 100));
 
@@ -572,14 +573,14 @@ export default function Settings() {
                       linkedinClientId,
                       linkedinClientSecret,
                     });
-                    
+
                     if (!saveRes.ok) {
                       throw new Error("Failed to save credentials");
                     }
 
                     // Wait for settings to be persisted
                     await queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
-                    
+
                     // Small delay to ensure database has persisted
                     await new Promise(resolve => setTimeout(resolve, 100));
 

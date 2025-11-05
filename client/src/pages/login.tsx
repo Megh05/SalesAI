@@ -10,6 +10,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useLocation } from "wouter";
+import { cn } from "@/lib/utils";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email"),
@@ -35,17 +36,17 @@ export default function Login() {
     setIsLoading(true);
     try {
       const res = await apiRequest("POST", "/api/auth/login", data);
-      
+
       if (!res.ok) {
         const error = await res.json();
         throw new Error(error.message || "Login failed");
       }
 
       await res.json();
-      
+
       // Invalidate queries to refetch user data
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-      
+
       toast({
         title: "Success!",
         description: "You've been logged in successfully.",
