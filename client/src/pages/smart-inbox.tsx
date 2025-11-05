@@ -252,8 +252,8 @@ export default function SmartInbox() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Email List */}
-          <div className="lg:col-span-1 space-y-2">
+          {/* Email List - Scrollable */}
+          <div className="lg:col-span-1 space-y-2 lg:max-h-[calc(100vh-12rem)] lg:overflow-y-auto lg:pr-2">
             {emails.map((email) => (
               <Card
                 key={email.id}
@@ -287,8 +287,8 @@ export default function SmartInbox() {
             ))}
           </div>
 
-          {/* Email Detail */}
-          <div className="lg:col-span-2">
+          {/* Email Detail - Sticky */}
+          <div className="lg:col-span-2 lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-12rem)] lg:overflow-y-auto">
             {selectedEmailData ? (
               <Card>
                 <CardHeader>
