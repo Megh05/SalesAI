@@ -21,6 +21,8 @@ const settingsSchema = z.object({
   gmailClientSecret: z.string().optional(),
   linkedinClientId: z.string().optional(),
   linkedinClientSecret: z.string().optional(),
+  n8nWebhookUrl: z.string().optional(),
+  n8nApiKey: z.string().optional(),
 });
 
 type SettingsFormData = z.infer<typeof settingsSchema>;
@@ -30,7 +32,9 @@ export default function Settings() {
   const [showApiKey, setShowApiKey] = useState(false);
   const [showGmailSecret, setShowGmailSecret] = useState(false);
   const [showLinkedInSecret, setShowLinkedInSecret] = useState(false);
+  const [showN8nApiKey, setShowN8nApiKey] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [testingN8n, setTestingN8n] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<{
     connected: boolean;
     message: string;
@@ -49,6 +53,8 @@ export default function Settings() {
       gmailClientSecret: settings?.gmailClientSecret || "",
       linkedinClientId: settings?.linkedinClientId || "",
       linkedinClientSecret: settings?.linkedinClientSecret || "",
+      n8nWebhookUrl: settings?.n8nWebhookUrl || "",
+      n8nApiKey: settings?.n8nApiKey || "",
     },
   });
 
@@ -631,6 +637,208 @@ export default function Settings() {
 
           <p className="text-sm text-muted-foreground border-l-2 border-amber-500 pl-3 py-1">
             Note: This integration provides access to LinkedIn profile data (name, email, photo) for contact enrichment. Advanced features like posting and messaging require LinkedIn Partner status.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* n8n Workflow Automation */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>n8n Workflow Automation</CardTitle>
+              <CardDescription>Connect to your n8n instance for workflow automation</CardDescription>
+            </div>
+            <Badge variant={settings?.n8nConnected ? "default" : "secondary"} className={settings?.n8nConnected ? "bg-green-500" : ""} data-testid="badge-n8n-status">
+              {settings?.n8nConnected ? (
+                <>
+                  <CheckCircle2 className="w-3 h-3 mr-1" />
+                  Connected
+                </>
+              ) : (
+                "Not Connected"
+              )}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="n8nWebhookUrl">n8n Webhook URL</Label>
+            <Input
+              id="n8nWebhookUrl"
+              placeholder="https://your-n8n-instance.com/webhook/..."
+              {...form.register("n8nWebhookUrl")}
+              data-testid="input-n8n-webhook-url"
+            />
+            <p className="text-sm text-muted-foreground">
+              Create a webhook workflow in{" "}
+              <a
+                href="https://n8n.io/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline"
+              >
+                n8n
+              </a>
+              {" "}and paste the webhook URL here
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="n8nApiKey">n8n API Key (Optional)</Label>
+            <div className="relative">
+              <Input
+                id="n8nApiKey"
+                type={showN8nApiKey ? "text" : "password"}
+                placeholder="Optional API key for authentication"
+                {...form.register("n8nApiKey")}
+                data-testid="input-n8n-api-key"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute right-0 top-0 h-full px-3"
+                onClick={() => setShowN8nApiKey(!showN8nApiKey)}
+                data-testid="button-toggle-n8n-api-key"
+              >
+                {showN8nApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Optional: Add API key if your n8n instance requires authentication
+            </p>
+          </div>
+
+          <div className="flex gap-2">
+            {!settings?.n8nConnected ? (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={async () => {
+                    const n8nWebhookUrl = form.getValues("n8nWebhookUrl");
+
+                    if (!n8nWebhookUrl) {
+                      toast({
+                        title: "Missing Webhook URL",
+                        description: "Please enter your n8n webhook URL above.",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+
+                    setTestingN8n(true);
+                    try {
+                      // Save configuration first
+                      const saveRes = await apiRequest("PUT", "/api/settings", {
+                        n8nWebhookUrl: form.getValues("n8nWebhookUrl"),
+                        n8nApiKey: form.getValues("n8nApiKey"),
+                      });
+
+                      if (!saveRes.ok) {
+                        throw new Error("Failed to save configuration");
+                      }
+
+                      await queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+
+                      // Test connection
+                      const testRes = await apiRequest("POST", "/api/n8n/test");
+                      const testData = await testRes.json();
+
+                      toast({
+                        title: "Connection Test Successful",
+                        description: "Your n8n webhook is working correctly.",
+                      });
+                    } catch (error: any) {
+                      toast({
+                        title: "Connection Test Failed",
+                        description: error.message || "Unable to connect to n8n webhook",
+                        variant: "destructive",
+                      });
+                    } finally {
+                      setTestingN8n(false);
+                    }
+                  }}
+                  disabled={testingN8n}
+                  data-testid="button-test-n8n"
+                >
+                  {testingN8n ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Testing...
+                    </>
+                  ) : (
+                    "Test Connection"
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  variant="default"
+                  onClick={async () => {
+                    const n8nWebhookUrl = form.getValues("n8nWebhookUrl");
+
+                    if (!n8nWebhookUrl) {
+                      toast({
+                        title: "Missing Webhook URL",
+                        description: "Please enter your n8n webhook URL above.",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+
+                    try {
+                      await apiRequest("POST", "/api/n8n/configure", {
+                        webhookUrl: n8nWebhookUrl,
+                        apiKey: form.getValues("n8nApiKey") || null,
+                      });
+                      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+                      toast({
+                        title: "Connected",
+                        description: "n8n configured successfully",
+                      });
+                    } catch (error: any) {
+                      toast({
+                        title: "Connection Error",
+                        description: error.message || "Failed to configure n8n",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                  data-testid="button-connect-n8n"
+                >
+                  Connect n8n
+                </Button>
+              </>
+            ) : (
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={async () => {
+                  try {
+                    await apiRequest("POST", "/api/n8n/disconnect");
+                    queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+                    toast({
+                      title: "Disconnected",
+                      description: "n8n disconnected successfully",
+                    });
+                  } catch (error: any) {
+                    toast({
+                      title: "Error",
+                      description: error.message || "Failed to disconnect n8n",
+                      variant: "destructive",
+                    });
+                  }
+                }}
+                data-testid="button-disconnect-n8n"
+              >
+                Disconnect
+              </Button>
+            )}
+          </div>
+
+          <p className="text-sm text-muted-foreground border-l-2 border-blue-500 pl-3 py-1">
+            n8n is a powerful workflow automation tool. Use it to trigger custom workflows when new leads are created, emails are classified, or contacts are updated. Visit the Workflows page to see available event types.
           </p>
         </CardContent>
       </Card>

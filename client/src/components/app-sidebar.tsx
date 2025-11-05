@@ -8,6 +8,7 @@ import {
   Zap,
   MessageSquare,
   LogOut,
+  Workflow,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -73,6 +74,11 @@ const secondaryNavItems = [
     title: "Analytics",
     url: "/analytics",
     icon: BarChart3,
+  },
+  {
+    title: "Workflows",
+    url: "/workflows",
+    icon: Workflow,
   },
   {
     title: "Settings",

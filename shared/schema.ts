@@ -179,6 +179,9 @@ export const userSettings = sqliteTable("user_settings", {
   linkedinClientId: text("linkedin_client_id"),
   linkedinClientSecret: text("linkedin_client_secret"),
   linkedinConnected: integer("linkedin_connected", { mode: "boolean" }).default(false),
+  n8nWebhookUrl: text("n8n_webhook_url"),
+  n8nApiKey: text("n8n_api_key"),
+  n8nConnected: integer("n8n_connected", { mode: "boolean" }).default(false),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });

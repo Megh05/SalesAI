@@ -915,6 +915,138 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // n8n Integration routes
+  app.post("/api/n8n/configure", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { webhookUrl, apiKey } = req.body;
+
+      if (!webhookUrl) {
+        return res.status(400).json({ message: "Webhook URL is required" });
+      }
+
+      await storage.updateUserSettings(userId, {
+        n8nWebhookUrl: webhookUrl,
+        n8nApiKey: apiKey || null,
+        n8nConnected: 1,
+      });
+
+      res.json({ message: "n8n configured successfully" });
+    } catch (error: any) {
+      console.error("Error configuring n8n:", error);
+      res.status(500).json({ message: error.message || "Failed to configure n8n" });
+    }
+  });
+
+  app.post("/api/n8n/test", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const settings = await storage.getUserSettings(userId);
+
+      if (!settings?.n8nWebhookUrl) {
+        return res.status(400).json({ message: "n8n webhook URL not configured" });
+      }
+
+      const testPayload = {
+        event: "test",
+        timestamp: new Date().toISOString(),
+        data: { message: "Test connection from SalesPilot" }
+      };
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (settings.n8nApiKey) {
+        headers['X-N8N-API-KEY'] = settings.n8nApiKey;
+      }
+
+      const response = await fetch(settings.n8nWebhookUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(testPayload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`n8n webhook returned status ${response.status}`);
+      }
+
+      res.json({ message: "n8n connection test successful", status: response.status });
+    } catch (error: any) {
+      console.error("Error testing n8n connection:", error);
+      res.status(500).json({ message: error.message || "Failed to test n8n connection" });
+    }
+  });
+
+  app.post("/api/n8n/disconnect", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      await storage.updateUserSettings(userId, {
+        n8nWebhookUrl: null,
+        n8nApiKey: null,
+        n8nConnected: 0,
+      });
+      res.json({ message: "n8n disconnected successfully" });
+    } catch (error: any) {
+      console.error("Error disconnecting n8n:", error);
+      res.status(500).json({ message: error.message || "Failed to disconnect n8n" });
+    }
+  });
+
+  app.post("/api/n8n/trigger", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { event, data } = req.body;
+
+      if (!event) {
+        return res.status(400).json({ message: "Event type is required" });
+      }
+
+      const settings = await storage.getUserSettings(userId);
+
+      if (!settings?.n8nWebhookUrl) {
+        return res.status(400).json({ message: "n8n webhook URL not configured" });
+      }
+
+      const payload = {
+        event,
+        timestamp: new Date().toISOString(),
+        userId,
+        data,
+      };
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (settings.n8nApiKey) {
+        headers['X-N8N-API-KEY'] = settings.n8nApiKey;
+      }
+
+      const response = await fetch(settings.n8nWebhookUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`n8n webhook returned status ${response.status}`);
+      }
+
+      let responseData;
+      try {
+        responseData = await response.json();
+      } catch {
+        responseData = { message: "Workflow triggered successfully" };
+      }
+
+      res.json({ message: "Workflow triggered successfully", response: responseData });
+    } catch (error: any) {
+      console.error("Error triggering n8n workflow:", error);
+      res.status(500).json({ message: error.message || "Failed to trigger workflow" });
+    }
+  });
+
   app.post("/api/contacts/:id/enrich-linkedin", isAuthenticated, async (req: AuthRequest, res: Response) => {
     try {
       const userId = (req.user as any).id;
