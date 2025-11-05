@@ -65,6 +65,7 @@ export interface IStorage {
   // Email thread operations
   getEmailThreads(userId: string): Promise<EmailThread[]>;
   getEmailThread(id: string, userId: string): Promise<EmailThread | undefined>;
+  getEmailThreadByMessageId(messageId: string): Promise<EmailThread | undefined>;
   createEmailThread(emailThread: InsertEmailThread): Promise<EmailThread>;
   updateEmailThread(id: string, userId: string, emailThread: Partial<InsertEmailThread>): Promise<EmailThread | undefined>;
   markEmailAsRead(id: string, userId: string): Promise<boolean>;
@@ -235,6 +236,11 @@ export class DatabaseStorage implements IStorage {
 
   async getEmailThread(id: string, userId: string): Promise<EmailThread | undefined> {
     const [emailThread] = await db.select().from(emailThreads).where(and(eq(emailThreads.id, id), eq(emailThreads.userId, userId)));
+    return emailThread;
+  }
+
+  async getEmailThreadByMessageId(messageId: string): Promise<EmailThread | undefined> {
+    const [emailThread] = await db.select().from(emailThreads).where(eq(emailThreads.messageId, messageId));
     return emailThread;
   }
 
