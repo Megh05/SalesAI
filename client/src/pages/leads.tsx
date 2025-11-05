@@ -130,19 +130,19 @@ export default function Leads() {
     return companies.find(c => c.id === companyId);
   };
 
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
+  const getInitials = (firstName: string, lastName: string) => {
+    return `${firstName[0] || ''}${lastName[0] || ''}`.toUpperCase();
+  };
+
+  const getFullName = (contact: Contact) => {
+    return `${contact.firstName} ${contact.lastName}`.trim();
   };
 
   const filteredLeads = leads.filter((lead) => {
     const contact = getContact(lead.contactId);
     if (!contact) return false;
-    return contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    const fullName = getFullName(contact);
+    return fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
            contact.email.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
@@ -227,9 +227,9 @@ export default function Leads() {
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-8 w-8">
-                          <AvatarFallback className="text-xs">{getInitials(contact.name)}</AvatarFallback>
+                          <AvatarFallback className="text-xs">{getInitials(contact.firstName, contact.lastName)}</AvatarFallback>
                         </Avatar>
-                        <span className="font-medium">{contact.name}</span>
+                        <span className="font-medium">{getFullName(contact)}</span>
                       </div>
                     </TableCell>
                     <TableCell>{company?.name || "-"}</TableCell>
@@ -352,7 +352,7 @@ function LeadFormDialog({
                   <SelectContent>
                     {contacts.map((contact) => (
                       <SelectItem key={contact.id} value={contact.id}>
-                        {contact.name} ({contact.email})
+                        {contact.firstName} {contact.lastName} ({contact.email})
                       </SelectItem>
                     ))}
                   </SelectContent>
