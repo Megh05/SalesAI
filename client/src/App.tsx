@@ -17,6 +17,8 @@ import Contacts from "@/pages/contacts";
 import Activities from "@/pages/activities";
 import Analytics from "@/pages/analytics";
 import Settings from "@/pages/settings";
+import Workflows from "@/pages/workflows";
+import WorkflowBuilder from "@/pages/workflow-builder";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
 import { Loader2 } from "lucide-react";
@@ -31,6 +33,8 @@ function AuthenticatedRouter() {
       <Route path="/contacts" component={Contacts} />
       <Route path="/activities" component={Activities} />
       <Route path="/analytics" component={Analytics} />
+      <Route path="/workflows" component={Workflows} />
+      <Route path="/workflows/:id/edit" component={WorkflowBuilder} />
       <Route path="/settings" component={Settings} />
       <Route path="/login">{() => <Redirect to="/" />}</Route>
       <Route path="/register">{() => <Redirect to="/" />}</Route>
