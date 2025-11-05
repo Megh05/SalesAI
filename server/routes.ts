@@ -557,20 +557,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         contactId = existingContact.id;
         await storage.updateContact(existingContact.id, userId, {
           phone: leadData.contact.phone || existingContact.phone,
-          role: leadData.contact.role || existingContact.role,
+          position: leadData.contact.role || existingContact.position,
           companyId: companyId || existingContact.companyId,
         });
       } else {
+        // Split name into first and last name
+        const nameParts = leadData.contact.name.trim().split(/\s+/);
+        const firstName = nameParts[0] || 'Unknown';
+        const lastName = nameParts.slice(1).join(' ') || 'Contact';
+        
         const newContact = await storage.createContact({
-          name: leadData.contact.name,
+          firstName,
+          lastName,
           email: leadData.contact.email,
           phone: leadData.contact.phone || null,
-          role: leadData.contact.role || null,
+          position: leadData.contact.role || null,
           companyId: companyId,
-          tags: null,
-          linkedinProfileUrl: null,
-          linkedinHeadline: null,
-          linkedinImageUrl: null,
           userId,
         });
         contactId = newContact.id;
