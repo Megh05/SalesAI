@@ -93,8 +93,21 @@ Respond ONLY with valid JSON in this exact format:
         200
       );
 
-      // Parse the JSON response
-      const cleaned = response.trim().replace(/```json\n?/g, '').replace(/```\n?/g, '');
+      // Clean the response: remove markdown code blocks and special tokens
+      let cleaned = response.trim()
+        .replace(/```json\n?/g, '')
+        .replace(/```\n?/g, '')
+        .replace(/<s>/g, '')
+        .replace(/<\/s>/g, '')
+        .replace(/^\s*<[^>]+>\s*/g, '')
+        .trim();
+      
+      // Extract JSON if it's embedded in text
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        cleaned = jsonMatch[0];
+      }
+      
       const result = JSON.parse(cleaned);
 
       return {
@@ -235,7 +248,21 @@ Extract and return in this exact JSON format (use null for missing fields):
         150
       );
 
-      const cleaned = response.trim().replace(/```json\n?/g, '').replace(/```\n?/g, '');
+      // Clean the response: remove markdown code blocks and special tokens
+      let cleaned = response.trim()
+        .replace(/```json\n?/g, '')
+        .replace(/```\n?/g, '')
+        .replace(/<s>/g, '')
+        .replace(/<\/s>/g, '')
+        .replace(/^\s*<[^>]+>\s*/g, '')
+        .trim();
+      
+      // Extract JSON if it's embedded in text
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        cleaned = jsonMatch[0];
+      }
+      
       const result = JSON.parse(cleaned);
 
       return {
@@ -331,7 +358,21 @@ Consider it a potential lead if the email indicates:
         400
       );
 
-      const cleaned = response.trim().replace(/```json\n?/g, '').replace(/```\n?/g, '');
+      // Clean the response: remove markdown code blocks and special tokens
+      let cleaned = response.trim()
+        .replace(/```json\n?/g, '')
+        .replace(/```\n?/g, '')
+        .replace(/<s>/g, '')
+        .replace(/<\/s>/g, '')
+        .replace(/^\s*<[^>]+>\s*/g, '')
+        .trim();
+      
+      // Extract JSON if it's embedded in text
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        cleaned = jsonMatch[0];
+      }
+      
       const result = JSON.parse(cleaned);
 
       return {
