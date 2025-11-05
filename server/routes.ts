@@ -588,7 +588,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           value: leadData.lead.value || existingLead.value,
         });
       } else {
+        // Generate a title from the email subject or contact name
+        const title = email.subject || `Lead from ${leadData.contact.name}`;
+        
         lead = await storage.createLead({
+          title,
           contactId: contactId,
           companyId: companyId,
           status: leadData.lead.status,
