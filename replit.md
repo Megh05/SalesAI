@@ -8,6 +8,29 @@ The application serves as a centralized hub for managing companies, contacts, le
 
 ## Recent Changes
 
+**November 5, 2025** - Completed Phase 3: Custom Workflow Automation System
+- Built custom workflow automation engine integrated into SalesPilot (custom solution instead of N8N)
+- Database schema: Added `workflows` and `workflowExecutions` tables to track automation workflows
+- Workflow engine with node-based execution system supporting:
+  - Trigger nodes (email_received, lead_created, scheduled, manual)
+  - AI nodes (classify, summarize, generate_reply) using OpenRouter/Mistral
+  - Action nodes (create_lead, create_activity, send_notification)
+  - Control nodes (condition, delay)
+- REST API endpoints: POST/GET/PATCH/DELETE for workflow CRUD + POST /execute for running workflows
+- Workflow Builder UI: Drag-and-drop visual workflow editor using React Flow with:
+  - Node palette for adding workflow steps
+  - Visual canvas for connecting nodes
+  - Properties panel for configuring node settings
+  - Save/test/execute workflow functionality
+- 5 prebuilt workflow templates covering common sales automation scenarios:
+  1. Lead Qualification Pipeline - Automatically classify and route incoming leads
+  2. Email Response Automation - Generate AI-powered responses to common inquiries
+  3. Follow-up Reminder System - Track and remind about pending follow-ups
+  4. Lead Scoring Automation - Score leads based on email engagement
+  5. Contact Enrichment Flow - Enhance contact records with additional data
+- Navigation: Added Workflows link to main sidebar navigation
+- Fixed critical bug where newly created nodes had incorrect type serialization
+
 **November 4, 2025** - Added AI-Powered Lead Auto-Creation Feature
 - New AI analysis feature in Smart Inbox that detects potential leads from emails
 - One-click lead creation that automatically extracts and creates:
