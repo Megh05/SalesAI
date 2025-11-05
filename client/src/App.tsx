@@ -36,8 +36,6 @@ function AuthenticatedRouter() {
       <Route path="/workflows" component={Workflows} />
       <Route path="/workflows/:id/edit" component={WorkflowBuilder} />
       <Route path="/settings" component={Settings} />
-      <Route path="/login">{() => <Redirect to="/" />}</Route>
-      <Route path="/register">{() => <Redirect to="/" />}</Route>
       <Route component={NotFound} />
     </Switch>
   );
@@ -55,7 +53,7 @@ function UnauthenticatedRouter() {
 
 function AppContent() {
   const { user, isLoading, isAuthenticated } = useAuth();
-  
+
   const style = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
