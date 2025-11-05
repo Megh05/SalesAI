@@ -7,6 +7,8 @@ import { setupAuth, isAuthenticated, hashPassword, getSession } from "./auth";
 import { aiService } from "./ai";
 import { gmailService } from "./gmail";
 import { linkedinService } from "./linkedin";
+import { workflowEngine } from "./workflow-engine";
+import { workflowTemplates } from "./workflow-templates";
 import {
   insertCompanySchema,
   insertContactSchema,
@@ -16,6 +18,7 @@ import {
   insertUserSchema,
   loginSchema,
   insertUserSettingsSchema,
+  insertWorkflowSchema,
 } from "@shared/schema";
 
 type AuthRequest = Request & { user?: any };
@@ -998,6 +1001,152 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error seeding emails:", error);
       res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Workflow routes
+  app.get("/api/workflows", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user.id;
+      const includeTemplates = req.query.includeTemplates === 'true';
+      const workflows = await storage.getWorkflows(userId, includeTemplates);
+      res.json(workflows);
+    } catch (error: any) {
+      console.error("Error fetching workflows:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch workflows" });
+    }
+  });
+
+  app.get("/api/workflows/templates", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      res.json(workflowTemplates);
+    } catch (error: any) {
+      console.error("Error fetching workflow templates:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch templates" });
+    }
+  });
+
+  app.get("/api/workflows/:id", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user.id;
+      const { id } = req.params;
+      const workflow = await storage.getWorkflow(id, userId);
+      
+      if (!workflow) {
+        return res.status(404).json({ message: "Workflow not found" });
+      }
+      
+      res.json(workflow);
+    } catch (error: any) {
+      console.error("Error fetching workflow:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch workflow" });
+    }
+  });
+
+  app.post("/api/workflows", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user.id;
+      const workflowData = insertWorkflowSchema.parse(req.body);
+      
+      const workflow = await storage.createWorkflow({
+        ...workflowData,
+        userId,
+      });
+      
+      res.status(201).json(workflow);
+    } catch (error: any) {
+      console.error("Error creating workflow:", error);
+      res.status(400).json({ message: error.message || "Failed to create workflow" });
+    }
+  });
+
+  app.post("/api/workflows/:templateId/clone", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user.id;
+      const { templateId } = req.params;
+      
+      const template = workflowTemplates.find(t => t.name === templateId || workflowTemplates.indexOf(t).toString() === templateId);
+      
+      if (!template) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+      
+      const workflow = await storage.createWorkflow({
+        ...template,
+        name: `${template.name} (Copy)`,
+        isTemplate: false,
+        userId,
+      });
+      
+      res.status(201).json(workflow);
+    } catch (error: any) {
+      console.error("Error cloning workflow:", error);
+      res.status(400).json({ message: error.message || "Failed to clone workflow" });
+    }
+  });
+
+  app.patch("/api/workflows/:id", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user.id;
+      const { id } = req.params;
+      
+      const workflow = await storage.updateWorkflow(id, userId, req.body);
+      
+      if (!workflow) {
+        return res.status(404).json({ message: "Workflow not found" });
+      }
+      
+      res.json(workflow);
+    } catch (error: any) {
+      console.error("Error updating workflow:", error);
+      res.status(400).json({ message: error.message || "Failed to update workflow" });
+    }
+  });
+
+  app.delete("/api/workflows/:id", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user.id;
+      const { id } = req.params;
+      
+      const deleted = await storage.deleteWorkflow(id, userId);
+      
+      if (!deleted) {
+        return res.status(404).json({ message: "Workflow not found" });
+      }
+      
+      res.json({ message: "Workflow deleted successfully" });
+    } catch (error: any) {
+      console.error("Error deleting workflow:", error);
+      res.status(500).json({ message: error.message || "Failed to delete workflow" });
+    }
+  });
+
+  app.post("/api/workflows/:id/execute", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user.id;
+      const { id } = req.params;
+      const triggerData = req.body;
+      
+      const result = await workflowEngine.executeWorkflow(id, userId, triggerData);
+      
+      res.json({ message: "Workflow executed successfully", result });
+    } catch (error: any) {
+      console.error("Error executing workflow:", error);
+      res.status(500).json({ message: error.message || "Failed to execute workflow" });
+    }
+  });
+
+  app.get("/api/workflows/:id/executions", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user.id;
+      const { id } = req.params;
+      
+      const executions = await storage.getWorkflowExecutions(id, userId);
+      
+      res.json(executions);
+    } catch (error: any) {
+      console.error("Error fetching workflow executions:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch executions" });
     }
   });
 

@@ -17,6 +17,10 @@ import {
   type InsertUserSettings,
   type OAuthToken,
   type InsertOAuthToken,
+  type Workflow,
+  type InsertWorkflow,
+  type WorkflowExecution,
+  type InsertWorkflowExecution,
   users,
   companies,
   contacts,
@@ -25,6 +29,8 @@ import {
   emailThreads,
   userSettings,
   oauthTokens,
+  workflows,
+  workflowExecutions,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -79,6 +85,18 @@ export interface IStorage {
   createOAuthToken(token: InsertOAuthToken): Promise<OAuthToken>;
   updateOAuthToken(userId: string, provider: string, token: Partial<InsertOAuthToken>): Promise<OAuthToken | undefined>;
   deleteOAuthToken(userId: string, provider: string): Promise<boolean>;
+
+  // Workflow operations
+  getWorkflows(userId: string, includeTemplates?: boolean): Promise<Workflow[]>;
+  getWorkflow(id: string, userId: string): Promise<Workflow | undefined>;
+  createWorkflow(workflow: InsertWorkflow): Promise<Workflow>;
+  updateWorkflow(id: string, userId: string, workflow: Partial<InsertWorkflow>): Promise<Workflow | undefined>;
+  deleteWorkflow(id: string, userId: string): Promise<boolean>;
+  
+  // Workflow execution operations
+  getWorkflowExecutions(workflowId: string, userId: string): Promise<WorkflowExecution[]>;
+  createWorkflowExecution(execution: InsertWorkflowExecution): Promise<WorkflowExecution>;
+  updateWorkflowExecution(id: string, execution: Partial<InsertWorkflowExecution>): Promise<WorkflowExecution | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -312,6 +330,69 @@ export class DatabaseStorage implements IStorage {
       .delete(oauthTokens)
       .where(and(eq(oauthTokens.userId, userId), eq(oauthTokens.provider, provider)));
     return result.changes > 0;
+  }
+
+  // Workflow operations
+  async getWorkflows(userId: string, includeTemplates: boolean = false): Promise<Workflow[]> {
+    if (includeTemplates) {
+      return db.select().from(workflows)
+        .where(eq(workflows.userId, userId))
+        .orderBy(desc(workflows.createdAt));
+    }
+    return db.select().from(workflows)
+      .where(and(eq(workflows.userId, userId), eq(workflows.isTemplate, false)))
+      .orderBy(desc(workflows.createdAt));
+  }
+
+  async getWorkflow(id: string, userId: string): Promise<Workflow | undefined> {
+    const [workflow] = await db.select().from(workflows)
+      .where(and(eq(workflows.id, id), eq(workflows.userId, userId)));
+    return workflow;
+  }
+
+  async createWorkflow(workflowData: InsertWorkflow): Promise<Workflow> {
+    const [workflow] = await db.insert(workflows).values(workflowData).returning();
+    return workflow;
+  }
+
+  async updateWorkflow(id: string, userId: string, workflowData: Partial<InsertWorkflow>): Promise<Workflow | undefined> {
+    const [updated] = await db
+      .update(workflows)
+      .set({
+        ...workflowData,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(workflows.id, id), eq(workflows.userId, userId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteWorkflow(id: string, userId: string): Promise<boolean> {
+    const result = await db
+      .delete(workflows)
+      .where(and(eq(workflows.id, id), eq(workflows.userId, userId)));
+    return result.changes > 0;
+  }
+
+  // Workflow execution operations
+  async getWorkflowExecutions(workflowId: string, userId: string): Promise<WorkflowExecution[]> {
+    return db.select().from(workflowExecutions)
+      .where(and(eq(workflowExecutions.workflowId, workflowId), eq(workflowExecutions.userId, userId)))
+      .orderBy(desc(workflowExecutions.startedAt));
+  }
+
+  async createWorkflowExecution(executionData: InsertWorkflowExecution): Promise<WorkflowExecution> {
+    const [execution] = await db.insert(workflowExecutions).values(executionData).returning();
+    return execution;
+  }
+
+  async updateWorkflowExecution(id: string, executionData: Partial<InsertWorkflowExecution>): Promise<WorkflowExecution | undefined> {
+    const [updated] = await db
+      .update(workflowExecutions)
+      .set(executionData)
+      .where(eq(workflowExecutions.id, id))
+      .returning();
+    return updated;
   }
 }
 

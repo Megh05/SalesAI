@@ -212,3 +212,52 @@ export const insertOAuthTokenSchema = createInsertSchema(oauthTokens).omit({
 
 export type InsertOAuthToken = z.infer<typeof insertOAuthTokenSchema>;
 export type OAuthToken = typeof oauthTokens.$inferSelect;
+
+// Workflows
+export const workflows = sqliteTable("workflows", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  description: text("description"),
+  trigger: text("trigger").notNull(),
+  triggerConfig: text("trigger_config"),
+  nodes: text("nodes").notNull(),
+  edges: text("edges").notNull(),
+  isActive: integer("is_active", { mode: "boolean" }).default(false),
+  isTemplate: integer("is_template", { mode: "boolean" }).default(false),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  lastExecutedAt: integer("last_executed_at", { mode: "timestamp" }),
+  executionCount: integer("execution_count").default(0),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
+export const insertWorkflowSchema = createInsertSchema(workflows).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  executionCount: true,
+  lastExecutedAt: true,
+});
+
+export type Workflow = typeof workflows.$inferSelect;
+export type InsertWorkflow = z.infer<typeof insertWorkflowSchema>;
+
+// Workflow Executions
+export const workflowExecutions = sqliteTable("workflow_executions", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  workflowId: text("workflow_id").notNull().references(() => workflows.id, { onDelete: "cascade" }),
+  status: text("status").notNull().default("running"),
+  startedAt: integer("started_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  completedAt: integer("completed_at", { mode: "timestamp" }),
+  executionData: text("execution_data"),
+  error: text("error"),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+});
+
+export const insertWorkflowExecutionSchema = createInsertSchema(workflowExecutions).omit({
+  id: true,
+  startedAt: true,
+});
+
+export type WorkflowExecution = typeof workflowExecutions.$inferSelect;
+export type InsertWorkflowExecution = z.infer<typeof insertWorkflowExecutionSchema>;
