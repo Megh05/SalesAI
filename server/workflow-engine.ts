@@ -25,13 +25,17 @@ export interface ExecutionContext {
 
 export class WorkflowEngine {
   async executeWorkflow(workflowId: string, userId: string, triggerData: any): Promise<any> {
+    if (!workflowId || workflowId === 'undefined' || workflowId === 'new') {
+      throw new Error("Invalid workflow ID");
+    }
+
     const workflow = await storage.getWorkflow(workflowId, userId);
     if (!workflow) {
       throw new Error("Workflow not found");
     }
 
     if (!workflow.isActive) {
-      throw new Error("Workflow is not active");
+      console.warn(`Executing inactive workflow: ${workflowId}`);
     }
 
     const execution = await storage.createWorkflowExecution({

@@ -127,7 +127,10 @@ export default function WorkflowBuilder() {
 
   const executeWorkflow = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/workflows/${id}/execute`, {
+      if (!workflow?.id) {
+        throw new Error("No workflow ID available");
+      }
+      const res = await apiRequest("POST", `/api/workflows/${workflow.id}/execute`, {
         subject: "Test Email",
         from: "test@example.com",
         preview: "This is a test email for workflow execution",
