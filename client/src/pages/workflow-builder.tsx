@@ -78,11 +78,10 @@ export default function WorkflowBuilder() {
   const addNode = (type: string) => {
     const newNode: Node = {
       id: `node-${Date.now()}`,
-      type: "default",
+      type,
       position: { x: 250, y: nodes.length * 100 + 50 },
       data: {
         label: nodeTypes.find((t) => t.value === type)?.label || type,
-        type,
       },
     };
     setNodes((nds) => [...nds, newNode]);
@@ -265,7 +264,7 @@ export default function WorkflowBuilder() {
           <div className="w-80 border-l p-4 overflow-y-auto bg-muted/20">
             <div className="mb-4">
               <h3 className="font-semibold mb-2">Node Properties</h3>
-              <Badge>{selectedNode.data.type || "unknown"}</Badge>
+              <Badge>{selectedNode.type || "unknown"}</Badge>
             </div>
             <div className="space-y-4">
               <div>
