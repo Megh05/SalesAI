@@ -196,6 +196,20 @@ export class EmailSyncService {
     this.syncIntervals.clear();
   }
 
+  async initializeAutoSyncForConnectedUsers(): Promise<void> {
+    try {
+      const allSettings = await storage.getAllUserSettings();
+      for (const setting of allSettings) {
+        if (setting.gmailConnected) {
+          this.startAutoSync(setting.userId, 15);
+        }
+      }
+      console.log(`Auto-sync initialized for ${allSettings.filter(s => s.gmailConnected).length} users`);
+    } catch (error) {
+      console.error('Error initializing auto-sync:', error);
+    }
+  }
+
   private extractEmail(emailString: string | undefined): string {
     if (!emailString) return '';
     const match = emailString.match(/<([^>]+)>/);

@@ -784,6 +784,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       await storage.updateUserSettings(userId, { gmailConnected: 1 });
 
+      emailSyncService.startAutoSync(userId, 15);
+
       res.redirect('/settings?gmail=connected');
     } catch (error: any) {
       console.error("Error handling Gmail OAuth callback:", error);
@@ -796,6 +798,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = (req.user as any).id;
       await storage.deleteOAuthToken(userId, 'gmail');
       await storage.updateUserSettings(userId, { gmailConnected: 0 });
+      emailSyncService.stopAutoSync(userId);
       res.json({ message: "Gmail disconnected successfully" });
     } catch (error: any) {
       console.error("Error disconnecting Gmail:", error);
@@ -1043,6 +1046,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const httpServer = createServer(app);
+
+  emailSyncService.initializeAutoSyncForConnectedUsers();
 
   return httpServer;
 }

@@ -72,6 +72,7 @@ export interface IStorage {
 
   // User settings operations
   getUserSettings(userId: string): Promise<UserSettings | undefined>;
+  getAllUserSettings(): Promise<UserSettings[]>;
   createUserSettings(settings: InsertUserSettings): Promise<UserSettings>;
   updateUserSettings(userId: string, settings: Partial<InsertUserSettings>): Promise<UserSettings | undefined>;
 
@@ -268,6 +269,10 @@ export class DatabaseStorage implements IStorage {
   async getUserSettings(userId: string): Promise<UserSettings | undefined> {
     const [settings] = await db.select().from(userSettings).where(eq(userSettings.userId, userId));
     return settings;
+  }
+
+  async getAllUserSettings(): Promise<UserSettings[]> {
+    return db.select().from(userSettings);
   }
 
   async createUserSettings(settingsData: InsertUserSettings): Promise<UserSettings> {
