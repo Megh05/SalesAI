@@ -266,21 +266,19 @@ export default function SmartInbox() {
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold truncate">{email.sender}</h4>
-                      <p className="text-xs text-muted-foreground truncate">{email.senderEmail}</p>
+                      <h4 className="font-semibold truncate">{email.fromName || 'Unknown Sender'}</h4>
+                      <p className="text-xs text-muted-foreground truncate">{email.fromEmail}</p>
                     </div>
-                    {!email.isRead && (
-                      <Badge variant="default" className="ml-2">New</Badge>
-                    )}
+                    <Badge variant="default" className="ml-2">New</Badge>
                   </div>
                   <p className="text-sm font-medium mb-1 truncate">{email.subject}</p>
-                  <p className="text-xs text-muted-foreground line-clamp-2">{email.preview}</p>
+                  <p className="text-xs text-muted-foreground line-clamp-2">{email.snippet}</p>
                   
                   {email.aiClassification && (
                     <div className="flex items-center gap-2 mt-3">
                       <LeadStatusBadge status={email.aiClassification} />
-                      {email.confidence && (
-                        <AIConfidenceBadge confidence={email.confidence} />
+                      {email.aiConfidence && (
+                        <AIConfidenceBadge confidence={email.aiConfidence} />
                       )}
                     </div>
                   )}
@@ -298,14 +296,19 @@ export default function SmartInbox() {
                     <div className="flex-1">
                       <CardTitle>{selectedEmailData.subject}</CardTitle>
                       <p className="text-sm text-muted-foreground mt-1">
-                        From: {selectedEmailData.sender} ({selectedEmailData.senderEmail})
+                        From: {selectedEmailData.fromName || 'Unknown'} ({selectedEmailData.fromEmail})
                       </p>
+                      {selectedEmailData.toEmail && (
+                        <p className="text-sm text-muted-foreground">
+                          To: {selectedEmailData.toEmail}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <p className="text-sm">{selectedEmailData.preview}</p>
+                    <p className="text-sm whitespace-pre-wrap">{selectedEmailData.snippet}</p>
                   </div>
 
                   <Separator />
@@ -350,8 +353,8 @@ export default function SmartInbox() {
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
                           <LeadStatusBadge status={selectedEmailData.aiClassification} />
-                          {selectedEmailData.confidence && (
-                            <AIConfidenceBadge confidence={selectedEmailData.confidence} />
+                          {selectedEmailData.aiConfidence && (
+                            <AIConfidenceBadge confidence={selectedEmailData.aiConfidence} />
                           )}
                           <Button
                             size="sm"
@@ -363,15 +366,6 @@ export default function SmartInbox() {
                             <RefreshCw className="w-3 h-3" />
                           </Button>
                         </div>
-                        {selectedEmailData.nextAction && (
-                          <div className="bg-blue-50 dark:bg-blue-950/20 p-3 rounded-lg flex items-start gap-2">
-                            <TrendingUp className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5" />
-                            <div>
-                              <p className="text-sm font-medium text-blue-900 dark:text-blue-100">Next Action:</p>
-                              <p className="text-sm text-blue-700 dark:text-blue-300">{selectedEmailData.nextAction}</p>
-                            </div>
-                          </div>
-                        )}
                       </div>
                     ) : (
                       <div className="bg-muted/50 p-4 rounded-lg flex items-center justify-between">
