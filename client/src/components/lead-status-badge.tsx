@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Sparkles } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type LeadStatus = "prospect" | "contacted" | "in_discussion" | "negotiation" | "closed_won" | "closed_lost";
 
