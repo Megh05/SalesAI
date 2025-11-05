@@ -143,7 +143,7 @@ export const emailThreads = sqliteTable("email_threads", {
   snippet: text("snippet"),
   fromEmail: text("from_email").notNull(),
   fromName: text("from_name"),
-  toEmail: text("to_email").notNull(),
+  toEmail: text("to_email"),
   aiSummary: text("ai_summary"),
   aiClassification: text("ai_classification"),
   aiConfidence: integer("ai_confidence"),
