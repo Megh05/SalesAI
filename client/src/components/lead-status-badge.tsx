@@ -25,18 +25,28 @@ const aiClassificationConfig: Record<string, { variant: "default" | "secondary" 
   "Closed": { variant: "default" },
 };
 
+const statusStyles = {
+  new: "bg-blue-500 text-white",
+  contacted: "bg-purple-500 text-white",
+  qualified: "bg-green-500 text-white",
+  proposal: "bg-yellow-500 text-white",
+  negotiation: "bg-green-500 text-white",
+  closed_won: "bg-emerald-500 text-white",
+  closed_lost: "bg-red-500 text-white",
+};
+
 export function LeadStatusBadge({ status }: LeadStatusBadgeProps) {
   const lowerStatus = status.toLowerCase().replace(/\s+/g, '_') as LeadStatus;
-  
+
   if (statusConfig[lowerStatus]) {
     const config = statusConfig[lowerStatus];
     return (
-      <Badge variant={config.variant} data-testid={`badge-status-${lowerStatus}`}>
+      <Badge variant={config.variant} data-testid={`badge-status-${lowerStatus}`} className={cn("text-xs font-medium px-3 py-1 rounded-full border-0", statusStyles[lowerStatus])}>
         {config.label}
       </Badge>
     );
   }
-  
+
   const aiConfig = aiClassificationConfig[status] || { variant: "outline" as const };
   return (
     <Badge variant={aiConfig.variant} className="gap-1" data-testid={`badge-ai-${status}`}>
