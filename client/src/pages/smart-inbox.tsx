@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { 
@@ -15,7 +16,9 @@ import {
   RefreshCw,
   UserPlus,
   Building,
-  Check
+  Check,
+  Download,
+  Lightbulb
 } from "lucide-react";
 import type { EmailThread } from "@shared/schema";
 import { AIConfidenceBadge } from "@/components/ai-confidence-badge";
@@ -71,6 +74,27 @@ export default function SmartInbox() {
       toast({
         title: "Error",
         description: error.message || "Failed to create sample emails",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const syncEmails = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/emails/sync");
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/emails"] });
+      toast({
+        title: "Email sync completed",
+        description: `${data.stats.newEmails} new emails synced, ${data.stats.classifiedEmails} classified by AI.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Sync failed",
+        description: error.message || "Failed to sync emails. Make sure Gmail is connected.",
         variant: "destructive",
       });
     },
@@ -196,31 +220,54 @@ export default function SmartInbox() {
   }
 
   return (
-    <div className="p-8 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold mb-2" data-testid="text-inbox-title">Smart Inbox</h1>
-          <p className="text-muted-foreground">AI-powered email classification and insights</p>
+    <TooltipProvider>
+      <div className="p-8 space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold mb-2" data-testid="text-inbox-title">Smart Inbox</h1>
+            <p className="text-muted-foreground">AI-powered email classification and insights</p>
+          </div>
+          <div className="flex gap-2">
+          {hasEmails && (
+            <Button 
+              onClick={() => syncEmails.mutate()}
+              disabled={syncEmails.isPending}
+              variant="outline"
+              data-testid="button-sync-emails"
+            >
+              {syncEmails.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Syncing...
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4 mr-2" />
+                  Sync Emails
+                </>
+              )}
+            </Button>
+          )}
+          {!hasEmails && (
+            <Button 
+              onClick={() => seedEmails.mutate()}
+              disabled={seedEmails.isPending}
+              data-testid="button-seed-emails"
+            >
+              {seedEmails.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <Mail className="w-4 h-4 mr-2" />
+                  Create Sample Emails
+                </>
+              )}
+            </Button>
+          )}
         </div>
-        {!hasEmails && (
-          <Button 
-            onClick={() => seedEmails.mutate()}
-            disabled={seedEmails.isPending}
-            data-testid="button-seed-emails"
-          >
-            {seedEmails.isPending ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Creating...
-              </>
-            ) : (
-              <>
-                <Mail className="w-4 h-4 mr-2" />
-                Create Sample Emails
-              </>
-            )}
-          </Button>
-        )}
       </div>
 
       {!hasEmails ? (
@@ -366,6 +413,21 @@ export default function SmartInbox() {
                             <RefreshCw className="w-3 h-3" />
                           </Button>
                         </div>
+                        {selectedEmailData.nextAction && (
+                          <div className="bg-amber-50 dark:bg-amber-950/20 p-3 rounded-lg border border-amber-200 dark:border-amber-800">
+                            <div className="flex items-start gap-2">
+                              <Lightbulb className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                              <div className="flex-1">
+                                <p className="text-xs font-semibold text-amber-900 dark:text-amber-100 mb-1">
+                                  Suggested Next Action
+                                </p>
+                                <p className="text-sm text-amber-700 dark:text-amber-300">
+                                  {selectedEmailData.nextAction}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="bg-muted/50 p-4 rounded-lg flex items-center justify-between">
@@ -537,6 +599,7 @@ export default function SmartInbox() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }

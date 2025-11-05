@@ -7,6 +7,7 @@ import { setupAuth, isAuthenticated, hashPassword, getSession } from "./auth";
 import { aiService } from "./ai";
 import { gmailService } from "./gmail";
 import { linkedinService } from "./linkedin";
+import { emailSyncService } from "./email-sync";
 import {
   insertCompanySchema,
   insertContactSchema,
@@ -617,6 +618,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error creating lead from email:", error);
       res.status(500).json({ message: error.message || "Failed to create lead" });
+    }
+  });
+
+  app.post("/api/emails/sync", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const stats = await emailSyncService.syncUserEmails(userId);
+      res.json({
+        message: "Email sync completed",
+        stats
+      });
+    } catch (error: any) {
+      console.error("Error syncing emails:", error);
+      res.status(500).json({ message: error.message || "Failed to sync emails" });
+    }
+  });
+
+  app.post("/api/emails/sync/start", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { intervalMinutes = 15 } = req.body;
+      emailSyncService.startAutoSync(userId, intervalMinutes);
+      res.json({
+        message: "Auto-sync started",
+        intervalMinutes
+      });
+    } catch (error: any) {
+      console.error("Error starting auto-sync:", error);
+      res.status(500).json({ message: error.message || "Failed to start auto-sync" });
+    }
+  });
+
+  app.post("/api/emails/sync/stop", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      emailSyncService.stopAutoSync(userId);
+      res.json({ message: "Auto-sync stopped" });
+    } catch (error: any) {
+      console.error("Error stopping auto-sync:", error);
+      res.status(500).json({ message: error.message || "Failed to stop auto-sync" });
     }
   });
 
