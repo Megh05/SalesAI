@@ -396,10 +396,20 @@ export default function Settings() {
 
                   try {
                     // Save credentials first
-                    await apiRequest("PUT", "/api/settings", {
+                    const saveRes = await apiRequest("PUT", "/api/settings", {
                       gmailClientId,
                       gmailClientSecret,
                     });
+                    
+                    if (!saveRes.ok) {
+                      throw new Error("Failed to save credentials");
+                    }
+
+                    // Wait for settings to be persisted
+                    await queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+                    
+                    // Small delay to ensure database has persisted
+                    await new Promise(resolve => setTimeout(resolve, 100));
 
                     // Then initiate OAuth
                     const res = await apiRequest("GET", "/api/oauth/gmail/authorize");
@@ -558,10 +568,20 @@ export default function Settings() {
 
                   try {
                     // Save credentials first
-                    await apiRequest("PUT", "/api/settings", {
+                    const saveRes = await apiRequest("PUT", "/api/settings", {
                       linkedinClientId,
                       linkedinClientSecret,
                     });
+                    
+                    if (!saveRes.ok) {
+                      throw new Error("Failed to save credentials");
+                    }
+
+                    // Wait for settings to be persisted
+                    await queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+                    
+                    // Small delay to ensure database has persisted
+                    await new Promise(resolve => setTimeout(resolve, 100));
 
                     // Then initiate OAuth
                     const res = await apiRequest("GET", "/api/oauth/linkedin/authorize");
