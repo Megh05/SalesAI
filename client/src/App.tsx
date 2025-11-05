@@ -34,6 +34,7 @@ function AuthenticatedRouter() {
       <Route path="/activities" component={Activities} />
       <Route path="/analytics" component={Analytics} />
       <Route path="/workflows" component={Workflows} />
+      <Route path="/workflows/new" component={WorkflowBuilder} />
       <Route path="/workflows/:id/edit" component={WorkflowBuilder} />
       <Route path="/settings" component={Settings} />
       <Route component={NotFound} />
