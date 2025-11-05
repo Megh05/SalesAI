@@ -8,15 +8,25 @@ The application serves as a centralized hub for managing companies, contacts, le
 
 ## Recent Changes
 
-**November 4, 2025** - Added AI-Powered Lead Auto-Creation Feature
-- New AI analysis feature in Smart Inbox that detects potential leads from emails
-- One-click lead creation that automatically extracts and creates:
-  - Contact information (name, email, phone, role)
-  - Company information (name, industry, size, location)
-  - Lead record with proper status and source tracking
-- AI provides confidence scores and reasoning for lead suggestions
-- Intelligent duplicate detection prevents creating duplicate contacts/companies
-- Uses existing OpenRouter/Mistral integration for cost-effective AI processing
+**November 5, 2025** - Phase 3: n8n Workflow Automation Completed
+- Full n8n integration for workflow automation
+- Automatic webhook triggers for:
+  - New lead creation (lead.created event)
+  - AI email classification (email.classified event)
+  - Lead status changes (lead.statusChanged event)
+- Settings UI for n8n webhook configuration and connection testing
+- Dedicated Workflows page showing available events, sample payloads, and test triggers
+- Fire-and-forget webhook delivery with error logging for resilience
+- Rich context payloads including IDs, names, classifications, and status transitions
+
+**November 4, 2025** - Phase 2: Smart Inbox AI Enhancements Completed
+- Background email sync service with auto-start after Gmail OAuth
+- Server boot initialization for existing Gmail connections
+- Enhanced Smart Inbox UI with confidence badges and next action tooltips
+- AI-powered lead auto-creation from email analysis
+- Automatic contact and company extraction with duplicate detection
+- Dynamic lead stage updates based on email classification
+- Comprehensive AI insights display (classification, confidence, summary, next actions)
 
 ## User Preferences
 
@@ -117,10 +127,13 @@ Preferred communication style: Simple, everyday language.
 - User needs to provide: LinkedIn Developer OAuth Client ID and Client Secret
 - Features: Message synchronization, contact enrichment
 
-**Workflow Automation** (Planned):
-- N8N integration for workflow orchestration
-- Custom AI nodes for classification, summarization, and response generation
-- Template library for common sales workflows
+**Workflow Automation** (Active Integration):
+- n8n integration for workflow orchestration via webhooks
+- Automatic event triggers for lead creation, email classification, and status changes
+- Manual test triggers available through Workflows UI
+- Supports custom n8n workflows with rich payload context
+- Optional API key authentication for secure webhook delivery
+- Event types: lead.created, email.classified, lead.statusChanged
 
 **Third-Party UI Libraries**:
 - Radix UI: Accessible component primitives (dialogs, dropdowns, tooltips, etc.)
