@@ -320,6 +320,7 @@ function LeadFormDialog({
   const form = useForm<LeadFormData>({
     resolver: zodResolver(leadFormSchema),
     defaultValues: lead || {
+      title: "",
       contactId: "",
       companyId: "",
       status: "prospect",
@@ -338,6 +339,20 @@ function LeadFormDialog({
       </DialogHeader>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <FormField
+            control={form.control}
+            name="title"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Lead Title</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g., Q1 Enterprise Deal" {...field} value={field.value || ""} data-testid="input-lead-title" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
           <FormField
             control={form.control}
             name="contactId"
