@@ -8,6 +8,7 @@ import { aiService } from "./ai";
 import { gmailService } from "./gmail";
 import { linkedinService } from "./linkedin";
 import { emailSyncService } from "./email-sync";
+import { n8nService } from "./n8n";
 import {
   insertCompanySchema,
   insertContactSchema,
@@ -222,6 +223,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = (req.user as any).id;
       const leadData = insertLeadSchema.parse({ ...req.body, userId });
       const lead = await storage.createLead(leadData);
+
+      const settings = await storage.getUserSettings(userId);
+      const contact = lead.contactId ? await storage.getContact(lead.contactId, userId) : null;
+      const company = lead.companyId ? await storage.getCompany(lead.companyId, userId) : null;
+
+      n8nService.triggerWorkflow(settings, "lead.created", {
+        leadId: lead.id,
+        title: lead.title,
+        status: lead.status,
+        value: lead.value,
+        contactEmail: contact?.email,
+        contactName: contact ? `${contact.firstName} ${contact.lastName}` : null,
+        companyName: company?.name,
+      }).catch(err => console.error("n8n trigger error:", err));
+
       res.status(201).json(lead);
     } catch (error: any) {
       console.error("Error creating lead:", error);
@@ -233,10 +249,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = (req.user as any).id;
       const { id } = req.params;
+      const oldLead = await storage.getLead(id, userId);
       const lead = await storage.updateLead(id, userId, req.body);
       if (!lead) {
         return res.status(404).json({ message: "Lead not found" });
       }
+
+      if (oldLead && req.body.status && oldLead.status !== req.body.status) {
+        const settings = await storage.getUserSettings(userId);
+        const contact = lead.contactId ? await storage.getContact(lead.contactId, userId) : null;
+
+        n8nService.triggerWorkflow(settings, "lead.statusChanged", {
+          leadId: lead.id,
+          title: lead.title,
+          previousStatus: oldLead.status,
+          newStatus: lead.status,
+          contactEmail: contact?.email,
+          contactName: contact ? `${contact.firstName} ${contact.lastName}` : null,
+        }).catch(err => console.error("n8n trigger error:", err));
+      }
+
       res.json(lead);
     } catch (error: any) {
       console.error("Error updating lead:", error);

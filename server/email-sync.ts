@@ -1,6 +1,7 @@
 import { storage } from "./storage";
 import { gmailService } from "./gmail";
 import { aiService } from "./ai";
+import { n8nService } from "./n8n";
 
 interface SyncStats {
   totalEmails: number;
@@ -102,6 +103,17 @@ export class EmailSyncService {
                 });
 
                 stats.classifiedEmails++;
+
+                n8nService.triggerWorkflow(settings, "email.classified", {
+                  emailId: emailThread.id,
+                  subject: parsedEmail.subject || '(No Subject)',
+                  fromEmail,
+                  fromName: this.extractName(parsedEmail.from),
+                  classification: classification.classification,
+                  confidence: classification.confidence,
+                  summary: classification.summary,
+                  nextAction: classification.nextAction,
+                }).catch(err => console.error("n8n trigger error:", err));
 
                 if (contactId) {
                   await this.autoUpdateLead(userId, contactId, classification.classification, emailThread.id);
