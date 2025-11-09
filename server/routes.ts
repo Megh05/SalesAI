@@ -947,6 +947,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // LinkedIn sync route
+  app.post("/api/linkedin/sync", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+
+      console.log('[LinkedIn Sync] Sync initiated for user:', userId);
+
+      const settings = await storage.getUserSettings(userId);
+      const token = await storage.getOAuthToken(userId, 'linkedin');
+
+      if (!settings?.linkedinConnected || !token) {
+        return res.status(400).json({ message: "LinkedIn not connected" });
+      }
+
+      const messages = await linkedinService.syncMessages(token.accessToken, userId);
+
+      if (messages.length === 0) {
+        console.log('[LinkedIn Sync] No messages retrieved (LinkedIn Messaging API is restricted to approved partners)');
+        return res.json({ 
+          message: "LinkedIn sync completed - no messages available (API restricted to partners. Ready for Unipile integration)",
+          count: 0,
+          messages: []
+        });
+      }
+
+      const syncedMessages = [];
+      for (const message of messages) {
+        const parsed = linkedinService.parseLinkedInMessage(message, userId);
+        
+        const existing = await storage.getEmailThreads(userId);
+        const isDuplicate = existing.some(e => 
+          e.messageId === parsed.messageId && e.channel === 'linkedin'
+        );
+
+        if (isDuplicate) {
+          console.log(`[LinkedIn Sync] Skipping duplicate message: ${parsed.messageId}`);
+          continue;
+        }
+
+        const savedMessage = await storage.createEmailThread({
+          subject: parsed.subject,
+          snippet: parsed.snippet,
+          fromEmail: parsed.fromEmail,
+          fromName: parsed.fromName,
+          toEmail: parsed.toEmail,
+          threadId: parsed.threadId,
+          messageId: parsed.messageId,
+          channel: parsed.channel,
+          providerMetadata: parsed.providerMetadata,
+          userId: parsed.userId,
+          receivedAt: parsed.receivedAt,
+        });
+
+        syncedMessages.push(savedMessage);
+      }
+
+      res.json({ 
+        message: "LinkedIn messages synced successfully", 
+        count: syncedMessages.length, 
+        messages: syncedMessages 
+      });
+    } catch (error: any) {
+      console.error("Error syncing LinkedIn messages:", error);
+      res.status(500).json({ message: error.message || "Failed to sync LinkedIn messages" });
+    }
+  });
+
   // n8n Integration routes
   app.post("/api/n8n/configure", isAuthenticated, async (req: AuthRequest, res: Response) => {
     try {

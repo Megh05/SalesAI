@@ -23,9 +23,11 @@ import {
   ChevronDown,
   ChevronRight
 } from "lucide-react";
+import { SiLinkedin, SiGmail } from "react-icons/si";
 import type { EmailThread } from "@shared/schema";
 import { AIConfidenceBadge } from "@/components/ai-confidence-badge";
 import { LeadStatusBadge } from "@/components/lead-status-badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface EmailThreadGroup {
   threadId: string | null;

@@ -89,6 +89,34 @@ export class LinkedInService {
       throw new Error('Failed to share on LinkedIn');
     }
   }
+
+  async syncMessages(accessToken: string, userId: string): Promise<any[]> {
+    console.log('[LinkedIn Sync] Message sync initiated for user:', userId);
+    console.log('[LinkedIn Sync] NOTE: LinkedIn Messaging API is restricted to approved partners.');
+    console.log('[LinkedIn Sync] This is a placeholder implementation ready for Unipile or official API integration.');
+    
+    return [];
+  }
+
+  parseLinkedInMessage(message: any, userId: string) {
+    return {
+      subject: message.subject || 'LinkedIn Message',
+      snippet: message.text?.substring(0, 200),
+      fromEmail: message.from?.email || 'linkedin-user@linkedin.com',
+      fromName: message.from?.name || 'LinkedIn User',
+      toEmail: message.to?.email || 'me@linkedin.com',
+      threadId: message.conversationId || message.id,
+      messageId: message.id,
+      channel: 'linkedin',
+      providerMetadata: JSON.stringify({
+        conversationId: message.conversationId,
+        participants: message.participants,
+        linkedinMessageId: message.id,
+      }),
+      userId,
+      receivedAt: message.createdAt ? new Date(message.createdAt) : new Date(),
+    };
+  }
 }
 
 export const linkedinService = new LinkedInService();

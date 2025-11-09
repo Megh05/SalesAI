@@ -136,7 +136,7 @@ export const insertActivitySchema = createInsertSchema(activities).omit({
 export type Activity = typeof activities.$inferSelect;
 export type InsertActivity = z.infer<typeof insertActivitySchema>;
 
-// Email Threads
+// Email Threads (Multi-channel Messages)
 export const emailThreads = sqliteTable("email_threads", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   subject: text("subject").notNull(),
@@ -150,6 +150,8 @@ export const emailThreads = sqliteTable("email_threads", {
   nextAction: text("next_action"),
   threadId: text("thread_id"),
   messageId: text("message_id"),
+  channel: text("channel").notNull().default("email"), // 'email', 'linkedin', 'twitter', etc.
+  providerMetadata: text("provider_metadata"), // JSON string for channel-specific data
   contactId: text("contact_id").references(() => contacts.id, { onDelete: "set null" }),
   leadId: text("lead_id").references(() => leads.id, { onDelete: "set null" }),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
