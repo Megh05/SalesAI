@@ -155,7 +155,26 @@ export class EmailSyncService {
     const contactLead = existingLeads.find(l => l.contactId === contactId);
 
     if (contactLead) {
-      await storage.updateLead(contactLead.id, userId, { status: newStatus });
+      // Only update if the new status represents progression or explicit closure
+      const shouldUpdate = this.shouldTransitionLead(contactLead.status, newStatus);
+      
+      if (shouldUpdate) {
+        await storage.updateLead(contactLead.id, userId, { status: newStatus });
+        console.log(`Lead ${contactLead.id} status updated from ${contactLead.status} to ${newStatus} based on email classification`);
+        
+        // Trigger n8n workflow for lead status change
+        const settings = await storage.getUserSettings(userId);
+        if (settings) {
+          n8nService.triggerWorkflow(settings, "lead.statusChanged", {
+            leadId: contactLead.id,
+            title: contactLead.title,
+            previousStatus: contactLead.status,
+            newStatus,
+            contactId: contactLead.contactId,
+          }).catch(err => console.error("n8n trigger error:", err));
+        }
+      }
+      
       await storage.updateEmailThread(emailId, userId, { leadId: contactLead.id });
     } else if (classification === "Lead Inquiry" || classification === "Negotiation") {
       const contact = await storage.getContact(contactId, userId);
@@ -169,8 +188,68 @@ export class EmailSyncService {
           userId,
         });
         await storage.updateEmailThread(emailId, userId, { leadId: lead.id });
+        
+        console.log(`New lead created from email: ${lead.id} with status ${newStatus}`);
+        
+        // Trigger n8n workflow for new lead
+        const settings = await storage.getUserSettings(userId);
+        if (settings) {
+          n8nService.triggerWorkflow(settings, "lead.created", {
+            leadId: lead.id,
+            title: lead.title,
+            status: newStatus,
+            contactEmail: contact.email,
+            contactName: `${contact.firstName} ${contact.lastName}`,
+            companyName: contact.companyId ? "Associated Company" : undefined,
+          }).catch(err => console.error("n8n trigger error:", err));
+        }
       }
     }
+  }
+
+  private shouldTransitionLead(currentStatus: string, newStatus: string): boolean {
+    // Define the complete lead lifecycle progression
+    const statusHierarchy: Record<string, number> = {
+      "new": 0,
+      "prospect": 1,
+      "contacted": 2,
+      "qualified": 3,
+      "demo": 4,
+      "negotiation": 5,
+      "proposal": 6,
+      "won": 7,
+      "lost": 7, // Same level as won - both are terminal states
+      "unqualified": 7, // Also a terminal state
+    };
+
+    // Get hierarchy levels, defaulting to -1 for unknown statuses
+    const currentLevel = statusHierarchy[currentStatus] ?? -1;
+    const newLevel = statusHierarchy[newStatus] ?? -1;
+
+    // Don't allow transitions with unknown statuses
+    if (currentLevel === -1 || newLevel === -1) {
+      console.warn(`Unknown lead status detected: current=${currentStatus}, new=${newStatus}. Skipping transition.`);
+      return false;
+    }
+
+    // Always allow transitions to terminal states (won, lost, unqualified)
+    if (newStatus === "won" || newStatus === "lost" || newStatus === "unqualified") {
+      return true;
+    }
+
+    // Don't transition from terminal states back to active states
+    if (currentStatus === "won" || currentStatus === "lost" || currentStatus === "unqualified") {
+      console.log(`Lead is in terminal state ${currentStatus}, not transitioning to ${newStatus}`);
+      return false;
+    }
+
+    // Only allow progression forward (never regress)
+    if (newLevel < currentLevel) {
+      console.log(`Preventing lead regression from ${currentStatus} (level ${currentLevel}) to ${newStatus} (level ${newLevel})`);
+      return false;
+    }
+    
+    return true;
   }
 
   startAutoSync(userId: string, intervalMinutes: number = 15): void {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,11 +18,21 @@ import {
   Building,
   Check,
   Download,
-  Lightbulb
+  Lightbulb,
+  MessageSquare,
+  ChevronDown,
+  ChevronRight
 } from "lucide-react";
 import type { EmailThread } from "@shared/schema";
 import { AIConfidenceBadge } from "@/components/ai-confidence-badge";
 import { LeadStatusBadge } from "@/components/lead-status-badge";
+
+interface EmailThreadGroup {
+  threadId: string | null;
+  emails: EmailThread[];
+  latestEmail: EmailThread;
+  count: number;
+}
 
 interface LeadAnalysis {
   contact: {
@@ -53,10 +63,59 @@ export default function SmartInbox() {
   const [processingEmails, setProcessingEmails] = useState<Set<string>>(new Set());
   const [leadAnalysis, setLeadAnalysis] = useState<Record<string, LeadAnalysis>>({});
   const [creatingLead, setCreatingLead] = useState<string | null>(null);
+  const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
 
   const { data: emails, isLoading } = useQuery<EmailThread[]>({
     queryKey: ["/api/emails"],
   });
+
+  // Group emails by threadId
+  const emailThreadGroups = useMemo(() => {
+    if (!emails) return [];
+    
+    const threadsMap = new Map<string | null, EmailThread[]>();
+    
+    emails.forEach(email => {
+      const key = email.threadId || email.id; // Use email id as fallback if no threadId
+      const existing = threadsMap.get(key) || [];
+      threadsMap.set(key, [...existing, email]);
+    });
+    
+    const groups: EmailThreadGroup[] = [];
+    threadsMap.forEach((threadEmails, threadId) => {
+      // Sort by receivedAt descending (newest first)
+      threadEmails.sort((a, b) => 
+        new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime()
+      );
+      
+      groups.push({
+        threadId,
+        emails: threadEmails,
+        latestEmail: threadEmails[0],
+        count: threadEmails.length
+      });
+    });
+    
+    // Sort groups by latest email date
+    groups.sort((a, b) => 
+      new Date(b.latestEmail.receivedAt).getTime() - new Date(a.latestEmail.receivedAt).getTime()
+    );
+    
+    return groups;
+  }, [emails]);
+
+  const toggleThread = (threadId: string | null) => {
+    if (!threadId) return;
+    setExpandedThreads(prev => {
+      const next = new Set(prev);
+      if (next.has(threadId)) {
+        next.delete(threadId);
+      } else {
+        next.add(threadId);
+      }
+      return next;
+    });
+  };
 
   const seedEmails = useMutation({
     mutationFn: async () => {
@@ -299,39 +358,110 @@ export default function SmartInbox() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Email List - Scrollable */}
+          {/* Email List - Scrollable with Thread Grouping */}
           <div className="lg:col-span-1 space-y-2 lg:max-h-[calc(100vh-12rem)] lg:overflow-y-auto lg:pr-2">
-            {emails.map((email) => (
-              <Card
-                key={email.id}
-                className={`cursor-pointer transition-all hover:shadow-md ${
-                  selectedEmail === email.id ? "ring-2 ring-primary" : ""
-                }`}
-                onClick={() => setSelectedEmail(email.id)}
-                data-testid={`email-item-${email.id}`}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold truncate">{email.fromName || 'Unknown Sender'}</h4>
-                      <p className="text-xs text-muted-foreground truncate">{email.fromEmail}</p>
-                    </div>
-                    <Badge variant="default" className="ml-2">New</Badge>
-                  </div>
-                  <p className="text-sm font-medium mb-1 truncate">{email.subject}</p>
-                  <p className="text-xs text-muted-foreground line-clamp-2">{email.snippet}</p>
+            {emailThreadGroups.map((group) => {
+              const isExpanded = expandedThreads.has(group.threadId || '');
+              const hasMultipleEmails = group.count > 1;
+              const isThreadSelected = group.emails.some(email => email.id === selectedEmail);
+              
+              return (
+                <div key={group.threadId || group.latestEmail.id} className="space-y-1">
+                  {/* Latest email in thread */}
+                  <Card
+                    className={`cursor-pointer transition-all hover:shadow-md ${
+                      isThreadSelected ? "ring-2 ring-primary" : ""
+                    }`}
+                    onClick={() => setSelectedEmail(group.latestEmail.id)}
+                    data-testid={`email-item-${group.latestEmail.id}`}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-semibold truncate">{group.latestEmail.fromName || 'Unknown Sender'}</h4>
+                            {hasMultipleEmails && (
+                              <Badge variant="secondary" className="text-xs">
+                                <MessageSquare className="w-3 h-3 mr-1" />
+                                {group.count}
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground truncate">{group.latestEmail.fromEmail}</p>
+                        </div>
+                        <Badge variant="default" className="ml-2">New</Badge>
+                      </div>
+                      <p className="text-sm font-medium mb-1 truncate">{group.latestEmail.subject}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-2">{group.latestEmail.snippet}</p>
+                      
+                      <div className="flex items-center justify-between mt-3">
+                        <div className="flex items-center gap-2 flex-1">
+                          {group.latestEmail.aiClassification && (
+                            <>
+                              <LeadStatusBadge status={group.latestEmail.aiClassification} />
+                              {group.latestEmail.aiConfidence && (
+                                <AIConfidenceBadge confidence={group.latestEmail.aiConfidence} />
+                              )}
+                            </>
+                          )}
+                        </div>
+                        {hasMultipleEmails && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleThread(group.threadId);
+                            }}
+                            data-testid={`button-toggle-thread-${group.threadId}`}
+                          >
+                            {isExpanded ? (
+                              <ChevronDown className="w-4 h-4" />
+                            ) : (
+                              <ChevronRight className="w-4 h-4" />
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
                   
-                  {email.aiClassification && (
-                    <div className="flex items-center gap-2 mt-3">
-                      <LeadStatusBadge status={email.aiClassification} />
-                      {email.aiConfidence && (
-                        <AIConfidenceBadge confidence={email.aiConfidence} />
-                      )}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
+                  {/* Older emails in thread (when expanded) */}
+                  {isExpanded && hasMultipleEmails && group.emails.slice(1).map((email, index) => (
+                    <Card
+                      key={email.id}
+                      className={`ml-6 cursor-pointer transition-all hover:shadow-md ${
+                        selectedEmail === email.id ? "ring-2 ring-primary" : ""
+                      }`}
+                      onClick={() => setSelectedEmail(email.id)}
+                      data-testid={`email-item-${email.id}`}
+                    >
+                      <CardContent className="p-3">
+                        <div className="flex items-start justify-between mb-1">
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-sm font-medium truncate">{email.fromName || 'Unknown Sender'}</h4>
+                            <p className="text-xs text-muted-foreground truncate">{email.fromEmail}</p>
+                          </div>
+                          <Badge variant="outline" className="ml-2 text-xs">
+                            Earlier
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{email.snippet}</p>
+                        {email.aiClassification && (
+                          <div className="flex items-center gap-2 mt-2">
+                            <LeadStatusBadge status={email.aiClassification} />
+                            {email.aiConfidence && (
+                              <AIConfidenceBadge confidence={email.aiConfidence} />
+                            )}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              );
+            })}
           </div>
 
           {/* Email Detail - Sticky */}
