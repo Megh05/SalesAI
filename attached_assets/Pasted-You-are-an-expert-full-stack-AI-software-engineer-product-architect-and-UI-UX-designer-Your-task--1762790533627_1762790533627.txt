@@ -1,0 +1,91 @@
+You are an expert full-stack AI software engineer, product architect, and UI/UX designer. Your task is to build a full-featured, customizable AI-powered Sales Automation Platform that helps businesses manage, automate, and scale their sales pipeline — from lead capture to conversion — using open-source tools and APIs like Mistral/OpenRouter.
+🏗️ Phase 1: Core Architecture Setup
+Tech Stack:
+Backend: Node.js (NestJS / Express)
+Frontend: Next.js + Tailwind CSS + ShadCN UI
+Database: PostgreSQL + Prisma ORM
+AI: Mistral/OpenRouter API
+Workflow Automation: N8N (self-hosted)
+Auth: OAuth 2.0 (Google, LinkedIn)
+Deployment: Docker + Nginx + Railway/Render
+Implement Core Modules:
+User Authentication & Role Management
+Company and Team setup
+Lead & Contact Management
+Activity Tracker (Emails, Messages, Notes)
+UI/UX Requirements:
+Clean, dashboard-style UI inspired by Notion + Linear + HubSpot
+Drag-and-drop elements for workflows
+Real-time lead updates
+Light/Dark mode with minimalistic color palette
+🤖 Phase 2: AI-Powered Smart Inbox Integration
+Integrations:
+Connect Gmail API (via OAuth 2.0)
+Connect LinkedIn API (via OAuth 2.0)
+Enable bi-directional sync: read incoming/outgoing messages.
+AI Automation (via Mistral/OpenRouter):
+Use AI to classify emails → “Lead Inquiry”, “Follow-up”, “Negotiation”, “Closed”, etc.
+Auto-create or update lead entries in the database based on detected intent.
+Summarize each email thread to display a short digest under each contact/company profile.
+AI should update lead stage dynamically (e.g., from “Prospect” → “In Discussion”).
+UI Flow:
+“Smart Inbox” page that shows all AI-summarized email threads.
+Hovering over an email shows “AI Summary”, “Next Action Suggestion”, and “Confidence Score.”
+🔁 Phase 3: Workflow Builder with N8N
+Integration:
+Embed or connect with N8N API for creating workflows.
+Allow users to design drag-and-drop workflows directly inside the app.
+Example workflow:
+Trigger: New lead from Gmail → AI classifies → Create record in app → Send Slack alert → Schedule LinkedIn message.
+Custom AI Nodes:
+“AI Classify” node — uses Mistral for intent detection.
+“AI Summarize” node — for email summarization.
+“AI Generate Reply” node — for auto-response suggestions.
+Workflow Template Library:
+Prebuilt templates (Lead Nurturing, Cold Outreach, Abandoned Lead Recovery, etc.)
+Users can clone and modify templates.
+🧩 Phase 4: Relation Map & Visualization
+Dynamic Graph View:
+Visualize companies, contacts, and leads as nodes in a 3D graph (using D3.js or Cytoscape.js).
+Edges show relationships like:
+“Replied to”
+“Introduced by”
+“Followed up on”
+“Same Company”
+Clicking a node opens an AI summary popup showing the latest interactions and next recommended step.
+AI-Powered Insights:
+Highlight “hot” leads (based on frequency or sentiment in emails).
+Suggest “who to contact next” based on engagement level and time since last interaction.
+💬 Phase 5: AI Copilot & Recommendations
+AI Sales Copilot Panel:
+Natural language chat interface:
+“Show me all leads that haven’t replied in 7 days.”
+“Generate a follow-up message for the lead from Tesla.”
+“What’s the current pipeline conversion rate?”
+Integrate Mistral API to interpret and run structured SQL queries or generate summaries.
+Email Composer:
+Context-aware auto-suggestion using Mistral.
+Supports tone adjustment (Professional / Friendly / Persuasive).
+Suggest next-step CTA based on lead’s status.
+⚙️ Phase 6: Deployment & Scalability
+Microservice Split: Separate services for:
+Auth
+AI Engine
+Workflow Engine
+CRM Core
+Analytics Engine
+Monitoring & Logs: Use OpenTelemetry + Grafana for system insights.
+CI/CD: GitHub Actions with Docker image deployment to Render/Railway.
+💡 Stretch Goals (Optional)
+Voice-to-text summarization for calls (using Whisper or Vosk).
+Chrome extension for quick lead capture from LinkedIn or Gmail.
+Mobile version using Flutter or React Native.
+AI-based lead scoring model trained on engagement data.
+🧩 Deliverables
+Fully functional Sales Automation SaaS platform with:
+Gmail & LinkedIn Integration
+AI-powered lead management
+Smart Inbox with summaries
+Workflow Builder (via N8N)
+Relation Map
+Sales Copilot Chat Interface
