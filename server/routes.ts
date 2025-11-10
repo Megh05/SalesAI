@@ -1228,6 +1228,212 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Relationship graph data for visualization
+  app.get("/api/relationship-graph", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+
+      const [companies, contacts, leads, activities, emails] = await Promise.all([
+        storage.getCompanies(userId),
+        storage.getContacts(userId),
+        storage.getLeads(userId),
+        storage.getActivities(userId),
+        storage.getEmailThreads(userId),
+      ]);
+
+      const now = new Date();
+      const calculateDaysSince = (date: Date) => Math.floor((now.getTime() - new Date(date).getTime()) / (1000 * 60 * 60 * 24));
+
+      const contactEngagement = new Map<string, { score: number; lastInteraction: Date; interactionCount: number }>();
+      contacts.forEach(contact => {
+        const contactActivities = activities.filter(a => a.contactId === contact.id);
+        const contactEmails = emails.filter(e => e.contactId === contact.id);
+        
+        const allInteractions = [
+          ...contactActivities.map(a => a.createdAt),
+          ...contactEmails.map(e => e.receivedAt)
+        ].sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+
+        const lastInteraction = allInteractions[0] ? new Date(allInteractions[0]) : new Date(contact.createdAt);
+        const daysSinceLastInteraction = calculateDaysSince(lastInteraction);
+        const interactionCount = allInteractions.length;
+
+        let score = 0;
+        if (interactionCount > 10) score += 40;
+        else if (interactionCount > 5) score += 25;
+        else if (interactionCount > 0) score += 10;
+
+        if (daysSinceLastInteraction < 7) score += 30;
+        else if (daysSinceLastInteraction < 30) score += 15;
+        else if (daysSinceLastInteraction < 90) score += 5;
+
+        const contactLead = leads.find(l => l.contactId === contact.id);
+        if (contactLead) {
+          if (contactLead.status === 'negotiation') score += 20;
+          else if (contactLead.status === 'demo' || contactLead.status === 'qualified') score += 15;
+          else if (contactLead.status === 'prospect') score += 5;
+          
+          if (contactLead.value && contactLead.value > 50000) score += 10;
+          else if (contactLead.value && contactLead.value > 10000) score += 5;
+        }
+
+        contactEngagement.set(contact.id, {
+          score: Math.min(score, 100),
+          lastInteraction,
+          interactionCount
+        });
+      });
+
+      const leadEngagement = new Map<string, { score: number; isHot: boolean }>();
+      leads.forEach(lead => {
+        const contactScore = lead.contactId ? contactEngagement.get(lead.contactId)?.score || 0 : 0;
+        let leadScore = contactScore;
+
+        if (lead.status === 'negotiation') leadScore += 20;
+        else if (lead.status === 'demo') leadScore += 15;
+        
+        if (lead.value && lead.value > 50000) leadScore += 15;
+
+        const isHot = leadScore >= 60;
+        leadEngagement.set(lead.id, { score: Math.min(leadScore, 100), isHot });
+      });
+
+      const nodes = [
+        ...companies.map(company => ({
+          id: `company-${company.id}`,
+          type: 'company',
+          data: {
+            ...company,
+            label: company.name,
+            description: `${company.industry || 'Unknown Industry'} • ${company.size || 'Unknown Size'}`,
+          }
+        })),
+        ...contacts.map(contact => ({
+          id: `contact-${contact.id}`,
+          type: 'contact',
+          data: {
+            ...contact,
+            label: `${contact.firstName} ${contact.lastName}`,
+            description: contact.position || 'Contact',
+            engagement: contactEngagement.get(contact.id),
+          }
+        })),
+        ...leads.map(lead => ({
+          id: `lead-${lead.id}`,
+          type: 'lead',
+          data: {
+            ...lead,
+            label: lead.title,
+            description: `${lead.status} • ${lead.value ? `$${lead.value.toLocaleString()}` : 'No value'}`,
+            engagement: leadEngagement.get(lead.id),
+            isHot: leadEngagement.get(lead.id)?.isHot || false,
+          }
+        }))
+      ];
+
+      const edges = [];
+
+      contacts.forEach(contact => {
+        if (contact.companyId) {
+          edges.push({
+            id: `edge-contact-${contact.id}-company-${contact.companyId}`,
+            source: `contact-${contact.id}`,
+            target: `company-${contact.companyId}`,
+            type: 'worksAt',
+            label: 'works at'
+          });
+        }
+      });
+
+      leads.forEach(lead => {
+        if (lead.contactId) {
+          edges.push({
+            id: `edge-lead-${lead.id}-contact-${lead.contactId}`,
+            source: `lead-${lead.id}`,
+            target: `contact-${lead.contactId}`,
+            type: 'associatedWith',
+            label: 'associated with'
+          });
+        }
+        if (lead.companyId) {
+          edges.push({
+            id: `edge-lead-${lead.id}-company-${lead.companyId}`,
+            source: `lead-${lead.id}`,
+            target: `company-${lead.companyId}`,
+            type: 'forCompany',
+            label: 'for company'
+          });
+        }
+      });
+
+      const topEngagedContacts = Array.from(contactEngagement.entries())
+        .sort((a, b) => b[1].score - a[1].score)
+        .slice(0, 5)
+        .map(([contactId, engagement]) => {
+          const contact = contacts.find(c => c.id === contactId);
+          return contact ? {
+            id: contactId,
+            name: `${contact.firstName} ${contact.lastName}`,
+            score: engagement.score,
+            lastInteraction: engagement.lastInteraction,
+            interactionCount: engagement.interactionCount
+          } : null;
+        })
+        .filter(c => c !== null);
+
+      const contactsToFollowUp = Array.from(contactEngagement.entries())
+        .filter(([_, engagement]) => {
+          const daysSince = calculateDaysSince(engagement.lastInteraction);
+          return engagement.interactionCount > 0 && daysSince > 14 && daysSince < 90;
+        })
+        .sort((a, b) => b[1].score - a[1].score)
+        .slice(0, 5)
+        .map(([contactId, engagement]) => {
+          const contact = contacts.find(c => c.id === contactId);
+          if (!contact) return null;
+          const daysSince = calculateDaysSince(engagement.lastInteraction);
+          return {
+            id: contactId,
+            name: `${contact.firstName} ${contact.lastName}`,
+            score: engagement.score,
+            daysSinceLastContact: daysSince,
+            reason: `No contact in ${daysSince} days`
+          };
+        })
+        .filter(c => c !== null);
+
+      const hotLeads = leads
+        .filter(lead => leadEngagement.get(lead.id)?.isHot)
+        .map(lead => ({
+          id: lead.id,
+          title: lead.title,
+          score: leadEngagement.get(lead.id)?.score || 0,
+          status: lead.status,
+          value: lead.value
+        }));
+
+      res.json({
+        nodes,
+        edges,
+        insights: {
+          topEngagedContacts,
+          contactsToFollowUp,
+          hotLeads,
+          stats: {
+            totalCompanies: companies.length,
+            totalContacts: contacts.length,
+            totalLeads: leads.length,
+            activeLeads: leads.filter(l => !['won', 'lost'].includes(l.status)).length,
+            hotLeadsCount: hotLeads.length
+          }
+        }
+      });
+    } catch (error) {
+      console.error("Error fetching relationship graph:", error);
+      res.status(500).json({ message: "Failed to fetch relationship graph" });
+    }
+  });
+
   // Development: Seed sample emails for testing
   app.post("/api/dev/seed-emails", isAuthenticated, async (req: AuthRequest, res) => {
     try {

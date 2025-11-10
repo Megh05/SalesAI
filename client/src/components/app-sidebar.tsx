@@ -9,6 +9,7 @@ import {
   MessageSquare,
   LogOut,
   Workflow,
+  Network,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -66,6 +67,11 @@ const mainNavItems = [
     title: "Activities",
     url: "/activities",
     icon: MessageSquare,
+  },
+  {
+    title: "Relation Map",
+    url: "/relation-map",
+    icon: Network,
   },
 ];
 

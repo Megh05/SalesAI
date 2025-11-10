@@ -8,6 +8,28 @@ The application serves as a centralized hub for managing companies, contacts, le
 
 ## Recent Changes
 
+**November 10, 2025** - Phase 4: Relation Map & Visualization Completed
+- Interactive graph visualization of sales network relationships
+- React Flow-based dynamic graph with automatic layout (dagre algorithm)
+- AI-powered engagement scoring system (0-100 scale) for contacts and leads
+- Visual node types for companies (blue), contacts (color-coded by engagement), and leads (purple/red for hot leads)
+- Relationship edges showing "works at", "associated with", and "for company" connections
+- Real-time insights panel displaying:
+  - Hot leads (score ≥60) with highlighting
+  - Top 5 engaged contacts by interaction frequency
+  - Follow-up recommendations for contacts inactive 14-90 days
+  - Network statistics (total entities, active leads count)
+- Interactive node popups showing detailed entity information and engagement metrics
+- Filtering by entity type (all/companies/contacts/leads)
+- Search functionality across all nodes
+- MiniMap and zoom controls for large networks
+- Engagement scoring factors:
+  - Interaction count (emails, calls, activities)
+  - Recency of last interaction
+  - Lead status (negotiation > demo > qualified > prospect)
+  - Deal value thresholds ($50k+, $10k+)
+- Dedicated "Relation Map" navigation item in main sidebar
+
 **November 5, 2025** - Phase 3: n8n Workflow Automation Completed
 - Full n8n integration for workflow automation
 - Automatic webhook triggers for:
