@@ -62,6 +62,7 @@ export default function Contacts() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/relationship-graph"] });
       setIsCreateOpen(false);
       toast({ title: "Success", description: "Contact created successfully" });
     },
@@ -78,6 +79,7 @@ export default function Contacts() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/relationship-graph"] });
       setEditingContact(null);
       toast({ title: "Success", description: "Contact updated successfully" });
     },
@@ -93,6 +95,7 @@ export default function Contacts() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/relationship-graph"] });
       setDeletingContact(null);
       toast({ title: "Success", description: "Contact deleted successfully" });
     },

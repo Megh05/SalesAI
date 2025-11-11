@@ -79,6 +79,7 @@ export default function Leads() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/relationship-graph"] });
       setIsCreateOpen(false);
       toast({ title: "Success", description: "Lead created successfully" });
     },
@@ -99,6 +100,7 @@ export default function Leads() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/relationship-graph"] });
       setEditingLead(null);
       toast({ title: "Success", description: "Lead updated successfully" });
     },
@@ -114,6 +116,7 @@ export default function Leads() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/relationship-graph"] });
       setDeletingLead(null);
       toast({ title: "Success", description: "Lead deleted successfully" });
     },
@@ -191,8 +194,8 @@ export default function Leads() {
         <div className="text-center py-12">
           <h3 className="text-lg font-semibold mb-2">No leads yet</h3>
           <p className="text-muted-foreground mb-4">
-            {contacts.length === 0 
-              ? "Create a contact first, then add leads" 
+            {contacts.length === 0
+              ? "Create a contact first, then add leads"
               : "Get started by creating your first lead"}
           </p>
           {contacts.length > 0 && (
@@ -222,7 +225,7 @@ export default function Leads() {
                 const contact = getContact(lead.contactId);
                 const company = getCompany(lead.companyId);
                 if (!contact) return null;
-                
+
                 return (
                   <TableRow key={lead.id} className="group" data-testid={`lead-row-${lead.id}`}>
                     <TableCell>
@@ -384,8 +387,8 @@ function LeadFormDialog({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Company</FormLabel>
-                <Select 
-                  onValueChange={(value) => field.onChange(value === "none" ? null : value)} 
+                <Select
+                  onValueChange={(value) => field.onChange(value === "none" ? null : value)}
                   value={field.value || "none"}
                 >
                   <FormControl>

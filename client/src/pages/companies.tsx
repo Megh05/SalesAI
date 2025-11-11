@@ -48,6 +48,7 @@ export default function Companies() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/relationship-graph"] });
       setIsCreateOpen(false);
       toast({ title: "Success", description: "Company created successfully" });
     },
@@ -64,6 +65,7 @@ export default function Companies() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/relationship-graph"] });
       setEditingCompany(null);
       toast({ title: "Success", description: "Company updated successfully" });
     },
@@ -79,6 +81,7 @@ export default function Companies() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/relationship-graph"] });
       setDeletingCompany(null);
       toast({ title: "Success", description: "Company deleted successfully" });
     },
@@ -155,7 +158,7 @@ export default function Companies() {
                         <p className="text-sm text-muted-foreground truncate">{company.location}</p>
                       )}
                     </div>
-                    
+
                     <div className="flex flex-wrap gap-1">
                       {company.industry && <Badge variant="secondary">{company.industry}</Badge>}
                       {company.size && <Badge variant="outline">{company.size}</Badge>}
