@@ -10,6 +10,16 @@ interface SummarizationResult {
   summary: string;
 }
 
+interface ChatMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+}
+
+interface ChatResponse {
+  message: string;
+  suggestions?: string[];
+}
+
 export class AIService {
   private async getApiKey(userId: string): Promise<string | null> {
     const settings = await storage.getUserSettings(userId);
@@ -400,6 +410,76 @@ Consider it a potential lead if the email indicates:
     } catch (error) {
       console.error("Error extracting lead data:", error);
       return null;
+    }
+  }
+
+  async chatCopilot(
+    userId: string,
+    messages: ChatMessage[],
+    context?: {
+      leads?: any[];
+      contacts?: any[];
+      companies?: any[];
+      activities?: any[];
+    }
+  ): Promise<ChatResponse | null> {
+    try {
+      const apiKey = await this.getApiKey(userId);
+      if (!apiKey) {
+        return {
+          message: "Please configure your OpenRouter API key in Settings to use the AI Copilot.",
+        };
+      }
+
+      // Build context summary
+      const contextSummary = [];
+      if (context?.leads && context.leads.length > 0) {
+        contextSummary.push(`You have ${context.leads.length} active leads.`);
+      }
+      if (context?.contacts && context.contacts.length > 0) {
+        contextSummary.push(`You have ${context.contacts.length} contacts in your CRM.`);
+      }
+      if (context?.companies && context.companies.length > 0) {
+        contextSummary.push(`You are tracking ${context.companies.length} companies.`);
+      }
+      if (context?.activities && context.activities.length > 0) {
+        contextSummary.push(`Recent activities: ${context.activities.slice(0, 3).map(a => a.type).join(', ')}.`);
+      }
+
+      const systemMessage = {
+        role: "system",
+        content: `You are an AI sales assistant helping with CRM tasks. You have access to the user's sales data.
+${contextSummary.length > 0 ? '\n' + contextSummary.join(' ') : ''}
+
+You can help with:
+- Analyzing leads and suggesting next actions
+- Finding contacts and companies
+- Recommending who to contact next
+- Providing insights from activities and emails
+- Drafting emails and messages
+
+Be concise, helpful, and actionable. If you suggest an action, explain why.`,
+      };
+
+      const response = await this.makeOpenRouterRequest(
+        apiKey,
+        [systemMessage, ...messages],
+        500
+      );
+
+      return {
+        message: response.trim(),
+        suggestions: [
+          "Show my top priority leads",
+          "Who should I contact today?",
+          "Summarize recent activities",
+        ],
+      };
+    } catch (error) {
+      console.error("Error in chat copilot:", error);
+      return {
+        message: "I'm having trouble processing your request. Please try again or check your API key in Settings.",
+      };
     }
   }
 }

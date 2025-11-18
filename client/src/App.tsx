@@ -7,6 +7,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { AICopilotChat } from "@/components/ai-copilot-chat";
 import { useAuth } from "@/hooks/useAuth";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
@@ -84,6 +85,7 @@ function AppContent() {
             </main>
           </div>
         </div>
+        <AICopilotChat />
       </SidebarProvider>
     );
   }

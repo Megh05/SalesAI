@@ -5,6 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { 
@@ -21,7 +25,9 @@ import {
   Lightbulb,
   MessageSquare,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Send,
+  Reply
 } from "lucide-react";
 import { SiLinkedin, SiGmail } from "react-icons/si";
 import type { EmailThread } from "@shared/schema";
@@ -66,18 +72,25 @@ export default function SmartInbox() {
   const [leadAnalysis, setLeadAnalysis] = useState<Record<string, LeadAnalysis>>({});
   const [creatingLead, setCreatingLead] = useState<string | null>(null);
   const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [replyToEmail, setReplyToEmail] = useState<EmailThread | null>(null);
+  const [emailDraft, setEmailDraft] = useState({ to: '', subject: '', body: '' });
+  const [activeChannel, setActiveChannel] = useState<'email' | 'linkedin'>('email');
 
   const { data: emails, isLoading } = useQuery<EmailThread[]>({
     queryKey: ["/api/emails"],
   });
 
-  // Group emails by threadId
+  // Group emails by threadId and filter by channel
   const emailThreadGroups = useMemo(() => {
     if (!emails) return [];
     
+    // Filter by selected channel
+    const filteredEmails = emails.filter(email => email.channel === activeChannel);
+    
     const threadsMap = new Map<string | null, EmailThread[]>();
     
-    emails.forEach(email => {
+    filteredEmails.forEach(email => {
       const key = email.threadId || email.id; // Use email id as fallback if no threadId
       const existing = threadsMap.get(key) || [];
       threadsMap.set(key, [...existing, email]);
@@ -104,7 +117,7 @@ export default function SmartInbox() {
     );
     
     return groups;
-  }, [emails]);
+  }, [emails, activeChannel]);
 
   const toggleThread = (threadId: string | null) => {
     if (!threadId) return;
@@ -160,6 +173,60 @@ export default function SmartInbox() {
       });
     },
   });
+
+  const sendEmail = useMutation({
+    mutationFn: async (data: { to: string; subject: string; body: string }) => {
+      const res = await apiRequest("POST", "/api/emails/send", data);
+      if (!res.ok) throw new Error("Failed to send email");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/emails"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
+      setComposeOpen(false);
+      setReplyToEmail(null);
+      setEmailDraft({ to: '', subject: '', body: '' });
+      toast({
+        title: "Email sent",
+        description: "Your email has been sent successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to send email",
+        description: error.message || "Make sure Gmail is connected.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleCompose = () => {
+    setReplyToEmail(null);
+    setEmailDraft({ to: '', subject: '', body: '' });
+    setComposeOpen(true);
+  };
+
+  const handleReply = (email: EmailThread) => {
+    setReplyToEmail(email);
+    setEmailDraft({
+      to: email.fromEmail,
+      subject: email.subject.startsWith('Re:') ? email.subject : `Re: ${email.subject}`,
+      body: '',
+    });
+    setComposeOpen(true);
+  };
+
+  const handleSendEmail = () => {
+    if (!emailDraft.to || !emailDraft.subject || !emailDraft.body) {
+      toast({
+        title: "Missing fields",
+        description: "Please fill in all fields before sending.",
+        variant: "destructive",
+      });
+      return;
+    }
+    sendEmail.mutate(emailDraft);
+  };
 
   const classifyEmail = async (emailId: string) => {
     setProcessingEmails(prev => new Set(prev).add(emailId));
@@ -288,7 +355,20 @@ export default function SmartInbox() {
             <h1 className="text-3xl font-bold mb-2" data-testid="text-inbox-title">Smart Inbox</h1>
             <p className="text-muted-foreground">AI-powered email classification and insights</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
+          {hasEmails && (
+            <Badge variant="secondary" className="gap-1.5">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              Auto-sync active
+            </Badge>
+          )}
+          <Button 
+            onClick={handleCompose}
+            data-testid="button-compose-email"
+          >
+            <Send className="w-4 h-4 mr-2" />
+            Compose
+          </Button>
           {hasEmails && (
             <Button 
               onClick={() => syncEmails.mutate()}
@@ -330,6 +410,20 @@ export default function SmartInbox() {
           )}
         </div>
       </div>
+
+      {/* Channel Tabs */}
+      <Tabs value={activeChannel} onValueChange={(value) => setActiveChannel(value as 'email' | 'linkedin')}>
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="email" className="gap-2" data-testid="tab-email">
+            <SiGmail className="w-4 h-4" />
+            Email
+          </TabsTrigger>
+          <TabsTrigger value="linkedin" className="gap-2" data-testid="tab-linkedin">
+            <SiLinkedin className="w-4 h-4" />
+            LinkedIn
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       {!hasEmails ? (
         <Card>
@@ -483,6 +577,15 @@ export default function SmartInbox() {
                         </p>
                       )}
                     </div>
+                    <Button
+                      onClick={() => handleReply(selectedEmailData)}
+                      variant="outline"
+                      size="sm"
+                      data-testid="button-reply"
+                    >
+                      <Reply className="w-4 h-4 mr-2" />
+                      Reply
+                    </Button>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -704,20 +807,6 @@ export default function SmartInbox() {
                       </div>
                     )}
                   </div>
-
-                  <Separator />
-
-                  <div className="flex gap-2">
-                    <Button variant="default" data-testid="button-reply">
-                      Reply
-                    </Button>
-                    <Button variant="outline" data-testid="button-forward">
-                      Forward
-                    </Button>
-                    <Button variant="ghost" data-testid="button-archive">
-                      Archive
-                    </Button>
-                  </div>
                 </CardContent>
               </Card>
             ) : (
@@ -731,6 +820,105 @@ export default function SmartInbox() {
           </div>
         </div>
       )}
+
+      {/* Email Compose/Reply Dialog */}
+      <Dialog open={composeOpen} onOpenChange={setComposeOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {replyToEmail ? `Reply to: ${replyToEmail.subject}` : 'Compose Email'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email-to">To</Label>
+              <Input
+                id="email-to"
+                value={emailDraft.to}
+                onChange={(e) => setEmailDraft({ ...emailDraft, to: e.target.value })}
+                placeholder="recipient@example.com"
+                data-testid="input-email-to"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email-subject">Subject</Label>
+              <Input
+                id="email-subject"
+                value={emailDraft.subject}
+                onChange={(e) => setEmailDraft({ ...emailDraft, subject: e.target.value })}
+                placeholder="Email subject"
+                data-testid="input-email-subject"
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="email-body">Message</Label>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={async () => {
+                    if (!emailDraft.subject) {
+                      toast({ title: "Please add a subject first", variant: "destructive" });
+                      return;
+                    }
+                    try {
+                      const res = await apiRequest("POST", "/api/copilot/chat", {
+                        messages: [{
+                          role: 'user',
+                          content: `Draft a professional email with subject: "${emailDraft.subject}". ${replyToEmail ? `This is a reply to an email from ${replyToEmail.fromName}` : ''}`
+                        }]
+                      });
+                      const data = await res.json();
+                      setEmailDraft({ ...emailDraft, body: data.message });
+                      toast({ title: "AI suggestion generated!" });
+                    } catch {
+                      toast({ title: "Failed to generate suggestion", variant: "destructive" });
+                    }
+                  }}
+                  data-testid="button-ai-assist"
+                >
+                  <Sparkles className="w-3 h-3 mr-1.5" />
+                  AI Assist
+                </Button>
+              </div>
+              <Textarea
+                id="email-body"
+                value={emailDraft.body}
+                onChange={(e) => setEmailDraft({ ...emailDraft, body: e.target.value })}
+                placeholder="Write your message..."
+                className="min-h-[200px]"
+                data-testid="textarea-email-body"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setComposeOpen(false)}
+              data-testid="button-cancel-compose"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSendEmail}
+              disabled={sendEmail.isPending}
+              data-testid="button-send-email"
+            >
+              {sendEmail.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4 mr-2" />
+                  Send
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       </div>
     </TooltipProvider>
   );

@@ -693,6 +693,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/emails/send", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { to, subject, body, replyToThreadId } = req.body;
+
+      if (!to || !subject || !body) {
+        return res.status(400).json({ message: "Missing required fields: to, subject, body" });
+      }
+
+      const token = await storage.getOAuthToken(userId, 'gmail');
+      if (!token) {
+        return res.status(400).json({ message: "Gmail not connected. Please connect Gmail first." });
+      }
+
+      const settings = await storage.getUserSettings(userId);
+      if (!settings?.gmailClientId || !settings?.gmailClientSecret) {
+        return res.status(400).json({ message: "Gmail credentials not configured" });
+      }
+
+      const gmail = await gmailService.getGmailClient(
+        token.accessToken,
+        token.refreshToken,
+        settings.gmailClientId,
+        settings.gmailClientSecret
+      );
+
+      const sentMessage = await gmailService.sendEmail(gmail, to, subject, body);
+
+      const activity = await storage.createActivity({
+        type: 'email',
+        title: `Sent email: ${subject}`,
+        description: `Sent email to ${to}`,
+        userId,
+      });
+
+      res.json({
+        success: true,
+        message: "Email sent successfully",
+        messageId: sentMessage.id,
+        activity
+      });
+    } catch (error: any) {
+      console.error("Error sending email:", error);
+      res.status(500).json({ message: error.message || "Failed to send email" });
+    }
+  });
+
   app.post("/api/settings/test-ai", isAuthenticated, async (req: AuthRequest, res: Response) => {
     try {
       const userId = (req.user as any).id;
@@ -1479,6 +1526,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error seeding emails:", error);
       res.status(500).json({ message: error.message });
+    }
+  });
+
+  // AI Copilot Chat
+  app.post("/api/copilot/chat", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      if (!req.user?.id) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const userId = req.user.id;
+      const { messages } = req.body;
+
+      if (!messages || !Array.isArray(messages)) {
+        return res.status(400).json({ message: "Messages array is required" });
+      }
+
+      // Gather context from CRM data
+      const leads = await storage.getLeads(userId);
+      const contacts = await storage.getContacts(userId);
+      const companies = await storage.getCompanies(userId);
+      const activities = await storage.getActivities(userId);
+
+      const response = await aiService.chatCopilot(userId, messages, {
+        leads,
+        contacts,
+        companies,
+        activities: activities.slice(0, 10), // Only recent activities
+      });
+
+      if (!response) {
+        return res.status(500).json({ message: "Failed to generate response" });
+      }
+
+      res.json(response);
+    } catch (error: any) {
+      console.error("Error in copilot chat:", error);
+      res.status(500).json({ message: error.message || "Failed to process chat" });
     }
   });
 
