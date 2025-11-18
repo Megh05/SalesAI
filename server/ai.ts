@@ -467,8 +467,15 @@ Be concise, helpful, and actionable. If you suggest an action, explain why.`,
         500
       );
 
+      // Clean the response: remove special tokens and extra whitespace
+      const cleaned = response
+        .replace(/<s>/g, '')
+        .replace(/<\/s>/g, '')
+        .replace(/^\s*<[^>]+>\s*/g, '')
+        .trim();
+
       return {
-        message: response.trim(),
+        message: cleaned,
         suggestions: [
           "Show my top priority leads",
           "Who should I contact today?",
