@@ -25,6 +25,11 @@ export function AICopilotChat() {
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const handleResetChat = () => {
+    setMessages([]);
+    setInput("");
+  };
+
   const chatMutation = useMutation({
     mutationFn: async (messages: Message[]) => {
       const res = await apiRequest("POST", "/api/copilot/chat", { messages });
@@ -89,14 +94,30 @@ export function AICopilotChat() {
               <CardTitle className="text-base">AI Copilot</CardTitle>
               <Badge variant="secondary" className="text-xs">Beta</Badge>
             </div>
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={() => setIsOpen(false)}
-              data-testid="button-close-copilot"
-            >
-              <X className="w-4 h-4" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={handleResetChat}
+                title="Reset chat"
+                data-testid="button-reset-chat"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                  <path d="M21 3v5h-5"/>
+                  <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+                  <path d="M3 21v-5h5"/>
+                </svg>
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => setIsOpen(false)}
+                data-testid="button-close-copilot"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
           </CardHeader>
 
           <CardContent className="flex-1 flex flex-col gap-3 p-0 overflow-hidden">
