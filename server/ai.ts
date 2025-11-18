@@ -111,13 +111,13 @@ Respond ONLY with valid JSON in this exact format:
         .replace(/<\/s>/g, '')
         .replace(/^\s*<[^>]+>\s*/g, '')
         .trim();
-      
+
       // Extract JSON if it's embedded in text
       const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         cleaned = jsonMatch[0];
       }
-      
+
       const result = JSON.parse(cleaned);
 
       return {
@@ -266,13 +266,13 @@ Extract and return in this exact JSON format (use null for missing fields):
         .replace(/<\/s>/g, '')
         .replace(/^\s*<[^>]+>\s*/g, '')
         .trim();
-      
+
       // Extract JSON if it's embedded in text
       const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         cleaned = jsonMatch[0];
       }
-      
+
       const result = JSON.parse(cleaned);
 
       return {
@@ -376,13 +376,13 @@ Consider it a potential lead if the email indicates:
         .replace(/<\/s>/g, '')
         .replace(/^\s*<[^>]+>\s*/g, '')
         .trim();
-      
+
       // Extract JSON if it's embedded in text
       const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         cleaned = jsonMatch[0];
       }
-      
+
       const result = JSON.parse(cleaned);
 
       return {
@@ -431,49 +431,79 @@ Consider it a potential lead if the email indicates:
         };
       }
 
-      // Build context summary
-      const contextSummary = [];
-      if (context?.leads && context.leads.length > 0) {
-        contextSummary.push(`You have ${context.leads.length} active leads.`);
-      }
-      if (context?.contacts && context.contacts.length > 0) {
-        contextSummary.push(`You have ${context.contacts.length} contacts in your CRM.`);
-      }
-      if (context?.companies && context.companies.length > 0) {
-        contextSummary.push(`You are tracking ${context.companies.length} companies.`);
-      }
-      if (context?.activities && context.activities.length > 0) {
-        contextSummary.push(`Recent activities: ${context.activities.slice(0, 3).map(a => a.type).join(', ')}.`);
-      }
+      // Build detailed context with actual data
+    const contextParts = [];
 
-      const systemMessage = {
-        role: "system",
-        content: `You are an AI sales assistant helping with CRM tasks. You have access to the user's sales data.
-${contextSummary.length > 0 ? '\n' + contextSummary.join(' ') : ''}
+    if (context?.contacts && context.contacts.length > 0) {
+      const contactsList = context.contacts.map(c => 
+        `- ${c.firstName} ${c.lastName} (${c.email})${c.position ? `, ${c.position}` : ''}${c.companyId ? ` at company ID ${c.companyId}` : ''}`
+      ).join('\n');
+      contextParts.push(`CONTACTS (${context.contacts.length} total):\n${contactsList}`);
+    }
 
-You can help with:
-- Analyzing leads and suggesting next actions
-- Finding contacts and companies
-- Recommending who to contact next
-- Providing insights from activities and emails
-- Drafting emails and messages
+    if (context?.companies && context.companies.length > 0) {
+      const companiesList = context.companies.map(c => 
+        `- ${c.name} (ID: ${c.id})${c.industry ? `, ${c.industry}` : ''}`
+      ).join('\n');
+      contextParts.push(`COMPANIES (${context.companies.length} total):\n${companiesList}`);
+    }
 
-Be concise, helpful, and actionable. If you suggest an action, explain why.`,
-      };
+    if (context?.leads && context.leads.length > 0) {
+      const leadsList = context.leads.map(l => 
+        `- ${l.title || 'Untitled'} (Status: ${l.status})${l.value ? `, Value: $${l.value}` : ''}`
+      ).join('\n');
+      contextParts.push(`LEADS (${context.leads.length} total):\n${leadsList}`);
+    }
 
-      const response = await this.makeOpenRouterRequest(
-        apiKey,
-        [systemMessage, ...messages],
-        500
-      );
+    if (context?.activities && context.activities.length > 0) {
+      const activitiesList = context.activities.slice(0, 5).map(a => 
+        `- ${a.title} (${a.type})`
+      ).join('\n');
+      contextParts.push(`RECENT ACTIVITIES:\n${activitiesList}`);
+    }
 
-      // Clean the response: remove special tokens and extra whitespace
-      const cleaned = response
-        .replace(/<s>/g, '')
-        .replace(/<\/s>/g, '')
-        .replace(/^\s*<[^>]+>\s*/g, '')
-        .trim();
+    const systemMessage = `You are a helpful AI sales assistant with access to the user's CRM data.
 
+IMPORTANT RULES:
+1. ONLY use the actual data provided below - do NOT make up or hallucinate any contacts, companies, or leads
+2. If asked about contacts/companies/leads and none exist, clearly state that the database is empty
+3. Be specific and cite exact names, emails, and details from the actual data
+4. If you don't have information, say so - don't invent it
+
+${contextParts.length > 0 ? 'ACTUAL CRM DATA:\n' + contextParts.join('\n\n') : 'No CRM data available yet. The database is empty.'}
+
+Provide concise, helpful responses based ONLY on the actual data above.`;
+
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": process.env.REPLIT_DOMAINS 
+          ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}` 
+          : "http://localhost:5000",
+        "X-Title": "SalesPilot",
+      },
+      body: JSON.stringify({
+        model: "mistralai/mistral-7b-instruct:free",
+        messages: [{ role: "system", content: systemMessage }, ...messages],
+        max_tokens: 500,
+        temperature: 0.3,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || "AI request failed");
+    }
+
+    const data = await response.json();
+    const cleaned = data.choices[0].message.content
+      .replace(/<s>/g, '')
+      .replace(/<\/s>/g, '')
+      .replace(/^\s*<[^>]+>\s*/g, '')
+      .trim();
+      
       return {
         message: cleaned,
         suggestions: [
