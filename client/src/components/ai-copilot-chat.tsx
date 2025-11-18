@@ -77,7 +77,8 @@ export function AICopilotChat() {
       {!isOpen && (
         <Button
           size="icon"
-          className="fixed !bottom-6 !right-6 h-14 w-14 rounded-full shadow-lg z-50"
+          className="h-14 w-14 rounded-full shadow-lg z-50"
+          style={{ position: 'fixed', bottom: '1.5rem', right: '1.5rem' }}
           onClick={() => setIsOpen(true)}
           data-testid="button-open-copilot"
         >
