@@ -15,7 +15,7 @@ import type { UserSettings } from "@shared/schema";
 import { cn } from "@/lib/utils";
 
 const settingsSchema = z.object({
-  openrouterApiKey: z.string().optional(),
+  openRouterApiKey: z.string().optional(),
   aiModel: z.string().optional(),
   gmailClientId: z.string().optional(),
   gmailClientSecret: z.string().optional(),
@@ -47,7 +47,7 @@ export default function Settings() {
   const form = useForm<SettingsFormData>({
     resolver: zodResolver(settingsSchema),
     values: {
-      openrouterApiKey: settings?.openrouterApiKey || "",
+      openRouterApiKey: settings?.openRouterApiKey || "",
       aiModel: settings?.aiModel || "mistralai/mistral-7b-instruct",
       gmailClientId: settings?.gmailClientId || "",
       gmailClientSecret: settings?.gmailClientSecret || "",
@@ -80,7 +80,7 @@ export default function Settings() {
   });
 
   const testConnection = async () => {
-    const apiKey = form.getValues("openrouterApiKey");
+    const apiKey = form.getValues("openRouterApiKey");
 
     if (!apiKey) {
       toast({
@@ -187,7 +187,7 @@ export default function Settings() {
     );
   }
 
-  const hasApiKey = !!settings?.openrouterApiKey;
+  const hasApiKey = !!settings?.openRouterApiKey;
 
   return (
     <div className="p-8 max-w-4xl space-y-6">
@@ -236,14 +236,14 @@ export default function Settings() {
         <CardContent>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="openrouterApiKey">OpenRouter API Key</Label>
+              <Label htmlFor="openRouterApiKey">OpenRouter API Key</Label>
               <div className="flex gap-2">
                 <div className="relative flex-1">
                   <Input
-                    id="openrouterApiKey"
+                    id="openRouterApiKey"
                     type={showApiKey ? "text" : "password"}
                     placeholder="sk-or-v1-..."
-                    {...form.register("openrouterApiKey")}
+                    {...form.register("openRouterApiKey")}
                     data-testid="input-api-key"
                   />
                   <Button
