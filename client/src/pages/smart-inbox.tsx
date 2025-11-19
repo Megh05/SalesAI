@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { 
@@ -27,7 +28,8 @@ import {
   ChevronDown,
   ChevronRight,
   Send,
-  Reply
+  Reply,
+  Wand2
 } from "lucide-react";
 import { SiLinkedin, SiGmail } from "react-icons/si";
 import type { EmailThread } from "@shared/schema";
@@ -75,7 +77,9 @@ export default function SmartInbox() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [replyToEmail, setReplyToEmail] = useState<EmailThread | null>(null);
   const [emailDraft, setEmailDraft] = useState({ to: '', subject: '', body: '' });
-  const [activeChannel, setActiveChannel] = useState<'email' | 'linkedin'>('email');
+  const [activeChannel, setActiveChannel] = useState<'email' | 'linkedin' | 'ai-compose'>('email');
+  const [emailTone, setEmailTone] = useState<'professional' | 'friendly' | 'persuasive'>('professional');
+  const [generatingEmail, setGeneratingEmail] = useState(false);
 
   const { data: emails, isLoading } = useQuery<EmailThread[]>({
     queryKey: ["/api/emails"],
@@ -412,8 +416,8 @@ export default function SmartInbox() {
       </div>
 
       {/* Channel Tabs */}
-      <Tabs value={activeChannel} onValueChange={(value) => setActiveChannel(value as 'email' | 'linkedin')}>
-        <TabsList className="grid w-full max-w-md grid-cols-2">
+      <Tabs value={activeChannel} onValueChange={(value) => setActiveChannel(value as 'email' | 'linkedin' | 'ai-compose')}>
+        <TabsList className="grid w-full max-w-2xl grid-cols-3">
           <TabsTrigger value="email" className="gap-2" data-testid="tab-email">
             <SiGmail className="w-4 h-4" />
             Email
@@ -422,10 +426,144 @@ export default function SmartInbox() {
             <SiLinkedin className="w-4 h-4" />
             LinkedIn
           </TabsTrigger>
+          <TabsTrigger value="ai-compose" className="gap-2" data-testid="tab-ai-compose">
+            <Wand2 className="w-4 h-4" />
+            AI Compose
+          </TabsTrigger>
         </TabsList>
       </Tabs>
 
-      {!hasEmails ? (
+      {activeChannel === 'ai-compose' ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Wand2 className="w-5 h-5 text-primary" />
+              AI-Powered Email Composer
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Generate professional emails with AI. Select tone, enter recipient and subject, then let AI craft the perfect message.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="ai-tone">Tone</Label>
+              <Select value={emailTone} onValueChange={(value) => setEmailTone(value as 'professional' | 'friendly' | 'persuasive')}>
+                <SelectTrigger id="ai-tone" data-testid="select-tone">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="professional">Professional</SelectItem>
+                  <SelectItem value="friendly">Friendly</SelectItem>
+                  <SelectItem value="persuasive">Persuasive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ai-compose-to">To</Label>
+              <Input
+                id="ai-compose-to"
+                value={emailDraft.to}
+                onChange={(e) => setEmailDraft({ ...emailDraft, to: e.target.value })}
+                placeholder="recipient@example.com"
+                data-testid="input-ai-compose-to"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ai-compose-subject">Subject</Label>
+              <Input
+                id="ai-compose-subject"
+                value={emailDraft.subject}
+                onChange={(e) => setEmailDraft({ ...emailDraft, subject: e.target.value })}
+                placeholder="Enter email subject"
+                data-testid="input-ai-compose-subject"
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="ai-compose-body">Message</Label>
+                <Button
+                  size="sm"
+                  onClick={async () => {
+                    if (!emailDraft.subject) {
+                      toast({ title: "Please enter a subject", variant: "destructive" });
+                      return;
+                    }
+                    setGeneratingEmail(true);
+                    try {
+                      const res = await apiRequest("POST", "/api/emails/generate-compose", {
+                        subject: emailDraft.subject,
+                        tone: emailTone,
+                      });
+                      const data = await res.json();
+                      setEmailDraft({ ...emailDraft, body: data.body });
+                      toast({ title: "Email generated successfully!" });
+                    } catch (error: any) {
+                      toast({ 
+                        title: "Failed to generate email", 
+                        description: error.message || "Make sure your AI API key is configured in settings.",
+                        variant: "destructive" 
+                      });
+                    } finally {
+                      setGeneratingEmail(false);
+                    }
+                  }}
+                  disabled={generatingEmail || !emailDraft.subject}
+                  data-testid="button-generate-email"
+                >
+                  {generatingEmail ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="w-4 h-4 mr-2" />
+                      Generate with AI
+                    </>
+                  )}
+                </Button>
+              </div>
+              <Textarea
+                id="ai-compose-body"
+                value={emailDraft.body}
+                onChange={(e) => setEmailDraft({ ...emailDraft, body: e.target.value })}
+                placeholder="Click 'Generate with AI' to create your message, or write your own..."
+                className="min-h-[300px]"
+                data-testid="textarea-ai-compose-body"
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEmailDraft({ to: '', subject: '', body: '' });
+                  setEmailTone('professional');
+                }}
+                data-testid="button-clear-compose"
+              >
+                Clear
+              </Button>
+              <Button
+                onClick={handleSendEmail}
+                disabled={sendEmail.isPending || !emailDraft.to || !emailDraft.subject || !emailDraft.body}
+                data-testid="button-send-ai-compose"
+              >
+                {sendEmail.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4 mr-2" />
+                    Send Email
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : !hasEmails ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">
             <Mail className="w-16 h-16 text-muted-foreground mb-4" />
@@ -851,34 +989,85 @@ export default function SmartInbox() {
               />
             </div>
             <div className="space-y-2">
+              <Label htmlFor="email-tone">Tone</Label>
+              <Select value={emailTone} onValueChange={(value) => setEmailTone(value as 'professional' | 'friendly' | 'persuasive')}>
+                <SelectTrigger id="email-tone" data-testid="select-email-tone">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="professional">Professional</SelectItem>
+                  <SelectItem value="friendly">Friendly</SelectItem>
+                  <SelectItem value="persuasive">Persuasive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="email-body">Message</Label>
                 <Button
                   size="sm"
                   variant="ghost"
                   onClick={async () => {
-                    if (!emailDraft.subject) {
-                      toast({ title: "Please add a subject first", variant: "destructive" });
-                      return;
-                    }
-                    try {
-                      const res = await apiRequest("POST", "/api/copilot/chat", {
-                        messages: [{
-                          role: 'user',
-                          content: `Draft a professional email with subject: "${emailDraft.subject}". ${replyToEmail ? `This is a reply to an email from ${replyToEmail.fromName}` : ''}`
-                        }]
-                      });
-                      const data = await res.json();
-                      setEmailDraft({ ...emailDraft, body: data.message });
-                      toast({ title: "AI suggestion generated!" });
-                    } catch {
-                      toast({ title: "Failed to generate suggestion", variant: "destructive" });
+                    if (replyToEmail) {
+                      // Use the generate-reply endpoint for replies
+                      setGeneratingEmail(true);
+                      try {
+                        const res = await apiRequest("POST", "/api/emails/generate-reply", {
+                          emailId: replyToEmail.id,
+                          tone: emailTone,
+                        });
+                        const data = await res.json();
+                        setEmailDraft({ ...emailDraft, body: data.reply });
+                        toast({ title: "AI reply generated successfully!" });
+                      } catch (error: any) {
+                        toast({ 
+                          title: "Failed to generate reply", 
+                          description: error.message || "Make sure your AI API key is configured in settings.",
+                          variant: "destructive" 
+                        });
+                      } finally {
+                        setGeneratingEmail(false);
+                      }
+                    } else {
+                      // Use the generate-compose endpoint for new emails
+                      if (!emailDraft.subject) {
+                        toast({ title: "Please add a subject first", variant: "destructive" });
+                        return;
+                      }
+                      setGeneratingEmail(true);
+                      try {
+                        const res = await apiRequest("POST", "/api/emails/generate-compose", {
+                          subject: emailDraft.subject,
+                          tone: emailTone,
+                        });
+                        const data = await res.json();
+                        setEmailDraft({ ...emailDraft, body: data.body });
+                        toast({ title: "AI email generated successfully!" });
+                      } catch (error: any) {
+                        toast({ 
+                          title: "Failed to generate email", 
+                          description: error.message || "Make sure your AI API key is configured in settings.",
+                          variant: "destructive" 
+                        });
+                      } finally {
+                        setGeneratingEmail(false);
+                      }
                     }
                   }}
+                  disabled={generatingEmail || (!replyToEmail && !emailDraft.subject)}
                   data-testid="button-ai-assist"
                 >
-                  <Sparkles className="w-3 h-3 mr-1.5" />
-                  AI Assist
+                  {generatingEmail ? (
+                    <>
+                      <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3 h-3 mr-1.5" />
+                      AI Assist
+                    </>
+                  )}
                 </Button>
               </div>
               <Textarea
