@@ -173,7 +173,7 @@ export const userSettings = sqliteTable("user_settings", {
   userId: text("user_id").unique().notNull().references(() => users.id, { onDelete: "cascade" }),
   theme: text("theme").default("light"),
   emailNotifications: integer("email_notifications", { mode: "boolean" }).default(true),
-  openrouterApiKey: text("openrouter_api_key"),
+  openRouterApiKey: text("openrouter_api_key"),
   aiModel: text("ai_model"),
   gmailClientId: text("gmail_client_id"),
   gmailClientSecret: text("gmail_client_secret"),
