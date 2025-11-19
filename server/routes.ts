@@ -693,6 +693,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/emails/generate-reply", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { emailId, tone } = req.body;
+
+      if (!emailId) {
+        return res.status(400).json({ message: "Email ID is required" });
+      }
+
+      const email = await storage.getEmailThread(emailId, userId);
+      if (!email) {
+        return res.status(404).json({ message: "Email not found" });
+      }
+
+      const validTone = ["professional", "friendly", "persuasive"].includes(tone) ? tone : "professional";
+
+      const reply = await aiService.generateReply(
+        userId,
+        {
+          subject: email.subject,
+          from: email.fromName || email.fromEmail,
+          body: email.snippet || "",
+        },
+        validTone
+      );
+
+      if (!reply) {
+        return res.status(500).json({ message: "Failed to generate reply. Make sure your AI API key is configured." });
+      }
+
+      res.json({ reply });
+    } catch (error: any) {
+      console.error("Error generating reply:", error);
+      res.status(500).json({ message: error.message || "Failed to generate reply" });
+    }
+  });
+
+  app.post("/api/emails/generate-compose", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { subject, tone, context } = req.body;
+
+      if (!subject) {
+        return res.status(400).json({ message: "Subject is required" });
+      }
+
+      const validTone = ["professional", "friendly", "persuasive"].includes(tone) ? tone : "professional";
+
+      const toneInstructions = {
+        professional: "Write in a professional, business-appropriate tone.",
+        friendly: "Write in a warm, friendly tone while maintaining professionalism.",
+        persuasive: "Write persuasively to encourage action or agreement.",
+      };
+
+      const apiKey = await aiService["getApiKey"](userId);
+      if (!apiKey) {
+        return res.status(500).json({ message: "AI API key not configured. Please add your API key in settings." });
+      }
+
+      const contextPrompt = context ? `\n\nAdditional context: ${context}` : '';
+
+      const prompt = `You are a sales professional composing an email. ${toneInstructions[validTone]}
+
+Subject: ${subject}${contextPrompt}
+
+Write a clear, concise, and engaging email body that addresses the subject:`;
+
+      const body = await aiService["makeOpenRouterRequest"](
+        apiKey,
+        [{ role: "user", content: prompt }],
+        400
+      );
+
+      if (!body) {
+        return res.status(500).json({ message: "Failed to generate email. Please try again." });
+      }
+
+      res.json({ body: body.trim() });
+    } catch (error: any) {
+      console.error("Error generating compose:", error);
+      res.status(500).json({ message: error.message || "Failed to generate email" });
+    }
+  });
+
   app.post("/api/emails/send", isAuthenticated, async (req: AuthRequest, res: Response) => {
     try {
       const userId = (req.user as any).id;
