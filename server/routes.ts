@@ -707,6 +707,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Email not found" });
       }
 
+      // Check if API key is configured
+      const settings = await storage.getUserSettings(userId);
+      if (!settings?.openRouterApiKey) {
+        return res.status(400).json({ message: "AI API key not configured. Please add your OpenRouter API key in Settings." });
+      }
+
       const validTone = ["professional", "friendly", "persuasive"].includes(tone) ? tone : "professional";
 
       const reply = await aiService.generateReply(
@@ -720,7 +726,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
 
       if (!reply) {
-        return res.status(500).json({ message: "Failed to generate reply. Make sure your AI API key is configured." });
+        return res.status(500).json({ message: "Failed to generate reply. The AI service may be unavailable. Please try again." });
       }
 
       res.json({ reply });
@@ -741,36 +747,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const validTone = ["professional", "friendly", "persuasive"].includes(tone) ? tone : "professional";
 
-      const toneInstructions = {
-        professional: "Write in a professional, business-appropriate tone.",
-        friendly: "Write in a warm, friendly tone while maintaining professionalism.",
-        persuasive: "Write persuasively to encourage action or agreement.",
-      };
-
-      const apiKey = await aiService["getApiKey"](userId);
-      if (!apiKey) {
-        return res.status(500).json({ message: "AI API key not configured. Please add your API key in settings." });
+      // Check if API key is configured
+      const settings = await storage.getUserSettings(userId);
+      if (!settings?.openRouterApiKey) {
+        return res.status(400).json({ message: "AI API key not configured. Please add your OpenRouter API key in Settings." });
       }
 
-      const contextPrompt = context ? `\n\nAdditional context: ${context}` : '';
-
-      const prompt = `You are a sales professional composing an email. ${toneInstructions[validTone]}
-
-Subject: ${subject}${contextPrompt}
-
-Write a clear, concise, and engaging email body that addresses the subject:`;
-
-      const body = await aiService["makeOpenRouterRequest"](
-        apiKey,
-        [{ role: "user", content: prompt }],
-        400
+      const body = await aiService.generateCompose(
+        userId,
+        {
+          subject,
+          context,
+        },
+        validTone
       );
 
       if (!body) {
-        return res.status(500).json({ message: "Failed to generate email. Please try again." });
+        return res.status(500).json({ message: "Failed to generate email. The AI service may be unavailable. Please try again." });
       }
 
-      res.json({ body: body.trim() });
+      res.json({ body });
     } catch (error: any) {
       console.error("Error generating compose:", error);
       res.status(500).json({ message: error.message || "Failed to generate email" });

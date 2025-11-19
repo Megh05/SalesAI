@@ -23,7 +23,7 @@ interface ChatResponse {
 export class AIService {
   private async getApiKey(userId: string): Promise<string | null> {
     const settings = await storage.getUserSettings(userId);
-    return settings?.openrouterApiKey || null;
+    return settings?.openRouterApiKey || null;
   }
 
   private async makeOpenRouterRequest(
@@ -212,6 +212,50 @@ Write a clear, concise reply that addresses the main points:`;
       return reply.trim();
     } catch (error) {
       console.error("Error generating reply:", error);
+      return null;
+    }
+  }
+
+  async generateCompose(
+    userId: string,
+    emailContent: {
+      subject: string;
+      context?: string;
+    },
+    tone: "professional" | "friendly" | "persuasive" = "professional"
+  ): Promise<string | null> {
+    try {
+      const apiKey = await this.getApiKey(userId);
+      if (!apiKey) {
+        console.warn("No API key configured for user", userId);
+        return null;
+      }
+
+      const toneInstructions = {
+        professional: "Write in a professional, business-appropriate tone.",
+        friendly: "Write in a warm, friendly tone while maintaining professionalism.",
+        persuasive: "Write persuasively to encourage action or agreement.",
+      };
+
+      const contextPrompt = emailContent.context 
+        ? `\n\nAdditional context: ${emailContent.context}` 
+        : '';
+
+      const prompt = `You are a sales professional composing a new email. ${toneInstructions[tone]}
+
+Subject: ${emailContent.subject}${contextPrompt}
+
+Write a clear, concise, and engaging email body that addresses the subject effectively. The email should be professional and actionable:`;
+
+      const body = await this.makeOpenRouterRequest(
+        apiKey,
+        [{ role: "user", content: prompt }],
+        400
+      );
+
+      return body.trim();
+    } catch (error) {
+      console.error("Error generating compose:", error);
       return null;
     }
   }
