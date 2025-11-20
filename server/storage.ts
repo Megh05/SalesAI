@@ -17,6 +17,16 @@ import {
   type InsertUserSettings,
   type OAuthToken,
   type InsertOAuthToken,
+  type Team,
+  type InsertTeam,
+  type TeamMember,
+  type InsertTeamMember,
+  type WorkflowTemplate,
+  type InsertWorkflowTemplate,
+  type WorkflowTemplateStep,
+  type InsertWorkflowTemplateStep,
+  type UserWorkflow,
+  type InsertUserWorkflow,
   users,
   companies,
   contacts,
@@ -25,6 +35,11 @@ import {
   emailThreads,
   userSettings,
   oauthTokens,
+  teams,
+  teamMembers,
+  workflowTemplates,
+  workflowTemplateSteps,
+  userWorkflows,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -81,6 +96,34 @@ export interface IStorage {
   createOAuthToken(token: InsertOAuthToken): Promise<OAuthToken>;
   updateOAuthToken(userId: string, provider: string, token: Partial<InsertOAuthToken>): Promise<OAuthToken | undefined>;
   deleteOAuthToken(userId: string, provider: string): Promise<boolean>;
+
+  // Team operations
+  getTeams(userId: string): Promise<Team[]>;
+  getTeam(id: string): Promise<Team | undefined>;
+  createTeam(team: InsertTeam): Promise<Team>;
+  updateTeam(id: string, ownerId: string, team: Partial<InsertTeam>): Promise<Team | undefined>;
+  deleteTeam(id: string, ownerId: string): Promise<boolean>;
+
+  // Team member operations
+  getTeamMembers(teamId: string): Promise<(TeamMember & { user: User })[]>;
+  getTeamMember(teamId: string, userId: string): Promise<TeamMember | undefined>;
+  addTeamMember(member: InsertTeamMember): Promise<TeamMember>;
+  updateTeamMemberRole(teamId: string, userId: string, role: string): Promise<TeamMember | undefined>;
+  removeTeamMember(teamId: string, userId: string): Promise<boolean>;
+
+  // Workflow template operations
+  getWorkflowTemplates(): Promise<WorkflowTemplate[]>;
+  getWorkflowTemplate(id: string): Promise<(WorkflowTemplate & { steps: WorkflowTemplateStep[] }) | undefined>;
+  createWorkflowTemplate(template: InsertWorkflowTemplate): Promise<WorkflowTemplate>;
+  getWorkflowTemplateSteps(templateId: string): Promise<WorkflowTemplateStep[]>;
+  createWorkflowTemplateStep(step: InsertWorkflowTemplateStep): Promise<WorkflowTemplateStep>;
+
+  // User workflow operations
+  getUserWorkflows(userId: string): Promise<UserWorkflow[]>;
+  getUserWorkflow(id: string, userId: string): Promise<UserWorkflow | undefined>;
+  createUserWorkflow(workflow: InsertUserWorkflow): Promise<UserWorkflow>;
+  updateUserWorkflow(id: string, userId: string, workflow: Partial<InsertUserWorkflow>): Promise<UserWorkflow | undefined>;
+  deleteUserWorkflow(id: string, userId: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -322,6 +365,183 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .delete(oauthTokens)
       .where(and(eq(oauthTokens.userId, userId), eq(oauthTokens.provider, provider)));
+    return result.changes > 0;
+  }
+
+  // Team operations
+  async getTeams(userId: string): Promise<Team[]> {
+    // Get teams where user is the owner
+    const ownedTeams = await db.select().from(teams).where(eq(teams.ownerId, userId));
+    
+    // Get teams where user is a member
+    const memberTeams = await db
+      .select({ team: teams })
+      .from(teamMembers)
+      .innerJoin(teams, eq(teamMembers.teamId, teams.id))
+      .where(eq(teamMembers.userId, userId));
+
+    // Combine and deduplicate
+    const allTeams = [...ownedTeams, ...memberTeams.map(m => m.team)];
+    const uniqueTeams = Array.from(new Map(allTeams.map(team => [team.id, team])).values());
+    
+    return uniqueTeams;
+  }
+
+  async getTeam(id: string): Promise<Team | undefined> {
+    const [team] = await db.select().from(teams).where(eq(teams.id, id));
+    return team;
+  }
+
+  async createTeam(teamData: InsertTeam): Promise<Team> {
+    const [team] = await db.insert(teams).values(teamData).returning();
+    
+    // Automatically add the owner as a team member with owner role
+    await db.insert(teamMembers).values({
+      teamId: team.id,
+      userId: team.ownerId,
+      role: 'owner',
+    });
+    
+    return team;
+  }
+
+  async updateTeam(id: string, ownerId: string, teamData: Partial<InsertTeam>): Promise<Team | undefined> {
+    const [updated] = await db
+      .update(teams)
+      .set({
+        ...teamData,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(teams.id, id), eq(teams.ownerId, ownerId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteTeam(id: string, ownerId: string): Promise<boolean> {
+    const result = await db
+      .delete(teams)
+      .where(and(eq(teams.id, id), eq(teams.ownerId, ownerId)));
+    return result.changes > 0;
+  }
+
+  // Team member operations
+  async getTeamMembers(teamId: string): Promise<(TeamMember & { user: User })[]> {
+    const members = await db
+      .select({ 
+        member: teamMembers, 
+        user: users 
+      })
+      .from(teamMembers)
+      .innerJoin(users, eq(teamMembers.userId, users.id))
+      .where(eq(teamMembers.teamId, teamId));
+
+    return members.map(m => {
+      const { password: _, ...userWithoutPassword } = m.user;
+      return {
+        ...m.member,
+        user: userWithoutPassword,
+      };
+    });
+  }
+
+  async getTeamMember(teamId: string, userId: string): Promise<TeamMember | undefined> {
+    const [member] = await db
+      .select()
+      .from(teamMembers)
+      .where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId)));
+    return member;
+  }
+
+  async addTeamMember(memberData: InsertTeamMember): Promise<TeamMember> {
+    const [member] = await db.insert(teamMembers).values(memberData).returning();
+    return member;
+  }
+
+  async updateTeamMemberRole(teamId: string, userId: string, role: string): Promise<TeamMember | undefined> {
+    const [updated] = await db
+      .update(teamMembers)
+      .set({ role })
+      .where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId)))
+      .returning();
+    return updated;
+  }
+
+  async removeTeamMember(teamId: string, userId: string): Promise<boolean> {
+    const result = await db
+      .delete(teamMembers)
+      .where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId)));
+    return result.changes > 0;
+  }
+
+  // Workflow template operations
+  async getWorkflowTemplates(): Promise<WorkflowTemplate[]> {
+    return db.select().from(workflowTemplates).orderBy(desc(workflowTemplates.createdAt));
+  }
+
+  async getWorkflowTemplate(id: string): Promise<(WorkflowTemplate & { steps: WorkflowTemplateStep[] }) | undefined> {
+    const [template] = await db.select().from(workflowTemplates).where(eq(workflowTemplates.id, id));
+    if (!template) return undefined;
+
+    const steps = await this.getWorkflowTemplateSteps(id);
+    return { ...template, steps };
+  }
+
+  async createWorkflowTemplate(templateData: InsertWorkflowTemplate): Promise<WorkflowTemplate> {
+    const [template] = await db.insert(workflowTemplates).values(templateData).returning();
+    return template;
+  }
+
+  async getWorkflowTemplateSteps(templateId: string): Promise<WorkflowTemplateStep[]> {
+    return db
+      .select()
+      .from(workflowTemplateSteps)
+      .where(eq(workflowTemplateSteps.templateId, templateId))
+      .orderBy(workflowTemplateSteps.stepOrder);
+  }
+
+  async createWorkflowTemplateStep(stepData: InsertWorkflowTemplateStep): Promise<WorkflowTemplateStep> {
+    const [step] = await db.insert(workflowTemplateSteps).values(stepData).returning();
+    return step;
+  }
+
+  // User workflow operations
+  async getUserWorkflows(userId: string): Promise<UserWorkflow[]> {
+    return db
+      .select()
+      .from(userWorkflows)
+      .where(eq(userWorkflows.userId, userId))
+      .orderBy(desc(userWorkflows.createdAt));
+  }
+
+  async getUserWorkflow(id: string, userId: string): Promise<UserWorkflow | undefined> {
+    const [workflow] = await db
+      .select()
+      .from(userWorkflows)
+      .where(and(eq(userWorkflows.id, id), eq(userWorkflows.userId, userId)));
+    return workflow;
+  }
+
+  async createUserWorkflow(workflowData: InsertUserWorkflow): Promise<UserWorkflow> {
+    const [workflow] = await db.insert(userWorkflows).values(workflowData).returning();
+    return workflow;
+  }
+
+  async updateUserWorkflow(id: string, userId: string, workflowData: Partial<InsertUserWorkflow>): Promise<UserWorkflow | undefined> {
+    const [updated] = await db
+      .update(userWorkflows)
+      .set({
+        ...workflowData,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(userWorkflows.id, id), eq(userWorkflows.userId, userId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteUserWorkflow(id: string, userId: string): Promise<boolean> {
+    const result = await db
+      .delete(userWorkflows)
+      .where(and(eq(userWorkflows.id, id), eq(userWorkflows.userId, userId)));
     return result.changes > 0;
   }
 }

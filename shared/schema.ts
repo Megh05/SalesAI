@@ -219,3 +219,99 @@ export const insertOAuthTokenSchema = createInsertSchema(oauthTokens).omit({
 
 export type InsertOAuthToken = z.infer<typeof insertOAuthTokenSchema>;
 export type OAuthToken = typeof oauthTokens.$inferSelect;
+
+// Teams
+export const teams = sqliteTable("teams", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  description: text("description"),
+  ownerId: text("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
+export const insertTeamSchema = createInsertSchema(teams).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type Team = typeof teams.$inferSelect;
+export type InsertTeam = z.infer<typeof insertTeamSchema>;
+
+// Team Members
+export const teamMembers = sqliteTable("team_members", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  teamId: text("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  role: text("role").notNull().default("member"), // 'owner', 'admin', 'member'
+  joinedAt: integer("joined_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
+export const insertTeamMemberSchema = createInsertSchema(teamMembers).omit({
+  id: true,
+  joinedAt: true,
+});
+
+export type TeamMember = typeof teamMembers.$inferSelect;
+export type InsertTeamMember = z.infer<typeof insertTeamMemberSchema>;
+
+// Workflow Templates
+export const workflowTemplates = sqliteTable("workflow_templates", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  category: text("category").notNull(), // 'lead_nurturing', 'cold_outreach', 'lead_recovery', etc.
+  icon: text("icon"),
+  isBuiltin: integer("is_builtin", { mode: "boolean" }).default(true),
+  triggerType: text("trigger_type").notNull(), // 'email_received', 'lead_created', 'status_change', etc.
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
+export const insertWorkflowTemplateSchema = createInsertSchema(workflowTemplates).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type WorkflowTemplate = typeof workflowTemplates.$inferSelect;
+export type InsertWorkflowTemplate = z.infer<typeof insertWorkflowTemplateSchema>;
+
+// Workflow Template Steps
+export const workflowTemplateSteps = sqliteTable("workflow_template_steps", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  templateId: text("template_id").notNull().references(() => workflowTemplates.id, { onDelete: "cascade" }),
+  stepOrder: integer("step_order").notNull(),
+  stepType: text("step_type").notNull(), // 'ai_classify', 'ai_summarize', 'send_email', 'create_task', etc.
+  stepConfig: text("step_config").notNull(), // JSON configuration for the step
+  description: text("description"),
+});
+
+export const insertWorkflowTemplateStepSchema = createInsertSchema(workflowTemplateSteps).omit({
+  id: true,
+});
+
+export type WorkflowTemplateStep = typeof workflowTemplateSteps.$inferSelect;
+export type InsertWorkflowTemplateStep = z.infer<typeof insertWorkflowTemplateStepSchema>;
+
+// User Workflows (cloned from templates)
+export const userWorkflows = sqliteTable("user_workflows", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  templateId: text("template_id").references(() => workflowTemplates.id, { onDelete: "set null" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  triggerType: text("trigger_type").notNull(),
+  isActive: integer("is_active", { mode: "boolean" }).default(true),
+  n8nWorkflowId: text("n8n_workflow_id"), // Reference to n8n workflow if using external automation
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
+export const insertUserWorkflowSchema = createInsertSchema(userWorkflows).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type UserWorkflow = typeof userWorkflows.$inferSelect;
+export type InsertUserWorkflow = z.infer<typeof insertUserWorkflowSchema>;
