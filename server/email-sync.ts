@@ -57,7 +57,7 @@ export class EmailSyncService {
           }
 
           const messageDetails = await gmailService.getMessage(gmail, message.id);
-          const parsedEmail = gmailService.parseEmail(messageDetails);
+          const parsedEmail = gmailService.parseEmailMessage(messageDetails);
 
           const fromEmail = this.extractEmail(parsedEmail.from);
           const toEmail = this.extractEmail(parsedEmail.to);
