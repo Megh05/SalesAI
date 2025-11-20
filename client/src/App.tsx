@@ -18,6 +18,7 @@ import Contacts from "@/pages/contacts";
 import Activities from "@/pages/activities";
 import Analytics from "@/pages/analytics";
 import Workflows from "@/pages/workflows";
+import Teams from "@/pages/teams"; // Assuming Teams page component is available
 import RelationMap from "@/pages/relation-map";
 import Settings from "@/pages/settings";
 import Login from "@/pages/login";
@@ -36,6 +37,7 @@ function AuthenticatedRouter() {
       <Route path="/relation-map" component={RelationMap} />
       <Route path="/analytics" component={Analytics} />
       <Route path="/workflows" component={Workflows} />
+      <Route path="/teams" component={Teams} />
       <Route path="/settings" component={Settings} />
       <Route path="/login">{() => <Redirect to="/" />}</Route>
       <Route path="/register">{() => <Redirect to="/" />}</Route>
@@ -56,7 +58,7 @@ function UnauthenticatedRouter() {
 
 function AppContent() {
   const { user, isLoading, isAuthenticated } = useAuth();
-  
+
   const style = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",

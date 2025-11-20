@@ -10,6 +10,7 @@ import {
   LogOut,
   Workflow,
   Network,
+  UserPlus,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -85,6 +86,11 @@ const secondaryNavItems = [
     title: "Workflows",
     url: "/workflows",
     icon: Workflow,
+  },
+  {
+    title: "Teams",
+    url: "/teams",
+    icon: UserPlus,
   },
   {
     title: "Settings",

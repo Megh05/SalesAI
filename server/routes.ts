@@ -1788,6 +1788,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/teams/:teamId/invite", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const { teamId } = req.params;
+      const { email, role } = req.body;
+
+      if (!email || !role) {
+        return res.status(400).json({ message: "Email and role are required" });
+      }
+
+      // Find user by email
+      const invitedUser = await storage.getUserByEmail(email);
+
+      if (!invitedUser) {
+        return res.status(404).json({ message: "User not found with this email" });
+      }
+
+      // Check if user is already a member
+      const existingMember = await storage.getTeamMember(teamId, invitedUser.id);
+      if (existingMember) {
+        return res.status(400).json({ message: "User is already a team member" });
+      }
+
+      // Add member to team
+      const member = await storage.addTeamMember({
+        teamId,
+        userId: invitedUser.id,
+        role,
+      });
+
+      res.status(201).json(member);
+    } catch (error: any) {
+      console.error("Error inviting team member:", error);
+      res.status(500).json({ message: error.message || "Failed to invite team member" });
+    }
+  });
+
+  app.patch("/api/teams/:teamId/members/:userId/role", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const { teamId, userId } = req.params;
+      const { role } = req.body;
+
+      if (!role) {
+        return res.status(400).json({ message: "Role is required" });
+      }
+
+      const updated = await storage.updateTeamMemberRole(teamId, userId, role);
+
+      if (!updated) {
+        return res.status(404).json({ message: "Team member not found" });
+      }
+
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating team member role:", error);
+      res.status(500).json({ message: error.message || "Failed to update role" });
+    }
+  });
+
   app.delete("/api/teams/:teamId/members/:userId", isAuthenticated, async (req: AuthRequest, res: Response) => {
     try {
       const { teamId, userId } = req.params;
@@ -1813,6 +1871,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error fetching workflow templates:", error);
       res.status(500).json({ message: error.message || "Failed to fetch workflow templates" });
+    }
+  });
+
+  app.post("/api/user-workflows", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const { templateId } = req.body;
+
+      if (!templateId) {
+        return res.status(400).json({ message: "Template ID is required" });
+      }
+
+      const template = await storage.getWorkflowTemplate(templateId);
+      if (!template) {
+        return res.status(404).json({ message: "Workflow template not found" });
+      }
+
+      const workflow = await storage.createUserWorkflow({
+        userId,
+        templateId,
+        name: template.name,
+        description: template.description,
+        triggerType: template.triggerType,
+        isActive: true,
+      });
+
+      res.status(201).json(workflow);
+    } catch (error: any) {
+      console.error("Error creating user workflow:", error);
+      res.status(500).json({ message: error.message || "Failed to create workflow" });
     }
   });
 

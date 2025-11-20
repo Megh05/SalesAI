@@ -3,7 +3,7 @@ import axios from 'axios';
 export class LinkedInService {
   getAuthUrl(clientId: string, redirectUri: string, state: string): string {
     const scope = 'openid profile email';
-    
+
     return `https://www.linkedin.com/oauth/v2/authorization?` +
       `response_type=code&` +
       `client_id=${clientId}&` +
@@ -53,6 +53,51 @@ export class LinkedInService {
     }
   }
 
+  async getDetailedProfile(accessToken: string): Promise<any> {
+    // Get basic profile
+    const profileResponse = await axios.get('https://api.linkedin.com/v2/me?projection=(id,localizedFirstName,localizedLastName,profilePicture(displayImage~:playableStreams))', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!profileResponse.ok) {
+      throw new Error('Failed to fetch detailed LinkedIn profile');
+    }
+
+    const profile = await profileResponse.json();
+
+    // Get email (requires separate permission)
+    const emailResponse = await axios.get('https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    });
+
+    let email = null;
+    if (emailResponse.ok) {
+      const emailData = await emailResponse.json();
+      email = emailData.elements?.[0]?.['handle~']?.emailAddress;
+    }
+
+    return {
+      ...profile,
+      email,
+    };
+  }
+
+  async enrichContactProfile(email: string, accessToken: string): Promise<any> {
+    // Search for profile by email
+    // Note: This requires LinkedIn Partner Program access
+    // For basic implementation, return enrichment data structure
+    return {
+      email,
+      source: 'linkedin',
+      enriched: false,
+      message: 'LinkedIn profile enrichment requires Partner Program access',
+    };
+  }
+
   async sharePost(accessToken: string, text: string, personId: string) {
     try {
       const shareData = {
@@ -94,7 +139,7 @@ export class LinkedInService {
     console.log('[LinkedIn Sync] Message sync initiated for user:', userId);
     console.log('[LinkedIn Sync] NOTE: LinkedIn Messaging API is restricted to approved partners.');
     console.log('[LinkedIn Sync] This is a placeholder implementation ready for Unipile or official API integration.');
-    
+
     return [];
   }
 

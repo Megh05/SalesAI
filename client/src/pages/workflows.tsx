@@ -5,9 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Loader2, Zap, Mail, UserPlus, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
+import { Loader2, Zap, Mail, UserPlus, CheckCircle2, XCircle, AlertTriangle, BookOpen, Play } from "lucide-react";
 import type { UserSettings } from "@shared/schema";
 import { Link } from "wouter";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const workflowEvents = [
   {
@@ -62,6 +63,11 @@ export default function Workflows() {
     queryKey: ["/api/settings"],
   });
 
+  const { data: templates } = useQuery({
+    queryKey: ["/api/templates"],
+    enabled: !!settings?.n8nConnected,
+  });
+
   const triggerWorkflow = useMutation({
     mutationFn: async ({ event, data }: { event: string; data: any }) => {
       const res = await apiRequest("POST", "/api/n8n/trigger", { event, data });
@@ -81,6 +87,26 @@ export default function Workflows() {
         variant: "destructive",
       });
       setTriggeringEvent(null);
+    },
+  });
+
+  const activateTemplate = useMutation({
+    mutationFn: async (templateId: string) => {
+      const res = await apiRequest("POST", "/api/templates/activate", { templateId });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Template Activated",
+        description: "Workflow template activated successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Template Activation Failed",
+        description: error.message || "Failed to activate workflow template.",
+        variant: "destructive",
+      });
     },
   });
 
@@ -139,70 +165,126 @@ export default function Workflows() {
         </Card>
       )}
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {workflowEvents.map((event) => {
-          const Icon = event.icon;
-          const isTriggering = triggeringEvent === event.id;
+      <Tabs defaultValue="events" className="w-full">
+        <TabsList>
+          <TabsTrigger value="events">Events</TabsTrigger>
+          <TabsTrigger value="templates">Templates</TabsTrigger>
+        </TabsList>
 
-          return (
-            <Card key={event.id} data-testid={`card-workflow-${event.id}`}>
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 rounded-lg bg-primary/10">
-                      <Icon className="w-5 h-5 text-primary" />
+        <TabsContent value="events" className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {workflowEvents.map((event) => {
+              const Icon = event.icon;
+              const isTriggering = triggeringEvent === event.id;
+
+              return (
+                <Card key={event.id} data-testid={`card-workflow-${event.id}`}>
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 rounded-lg bg-primary/10">
+                          <Icon className="w-5 h-5 text-primary" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-lg">{event.name}</CardTitle>
+                          <CardDescription className="mt-1">{event.description}</CardDescription>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <CardTitle className="text-lg">{event.name}</CardTitle>
-                      <CardDescription className="mt-1">{event.description}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">Event Type:</p>
+                      <code className="block p-2 rounded bg-muted text-xs" data-testid={`text-event-type-${event.id}`}>
+                        {event.id}
+                      </code>
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">Sample Payload:</p>
+                      <pre className="p-2 rounded bg-muted text-xs overflow-auto max-h-40" data-testid={`text-sample-payload-${event.id}`}>
+                        {JSON.stringify(event.sampleData, null, 2)}
+                      </pre>
+                    </div>
+
+                    <Button
+                      onClick={() => {
+                        setTriggeringEvent(event.id);
+                        triggerWorkflow.mutate({
+                          event: event.id,
+                          data: event.sampleData
+                        });
+                      }}
+                      disabled={!isN8nConnected || isTriggering}
+                      className="w-full"
+                      data-testid={`button-trigger-${event.id}`}
+                    >
+                      {isTriggering ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Triggering...
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="w-4 h-4 mr-2" />
+                          Test Trigger
+                        </>
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="templates" className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            {templates?.map((template: any) => (
+              <Card key={template.id}>
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 rounded-lg bg-primary/10">
+                        <BookOpen className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-lg">{template.name}</CardTitle>
+                        <CardDescription className="mt-1">{template.description}</CardDescription>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Event Type:</p>
-                  <code className="block p-2 rounded bg-muted text-xs" data-testid={`text-event-type-${event.id}`}>
-                    {event.id}
-                  </code>
-                </div>
-
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Sample Payload:</p>
-                  <pre className="p-2 rounded bg-muted text-xs overflow-auto max-h-40" data-testid={`text-sample-payload-${event.id}`}>
-                    {JSON.stringify(event.sampleData, null, 2)}
-                  </pre>
-                </div>
-
-                <Button
-                  onClick={() => {
-                    setTriggeringEvent(event.id);
-                    triggerWorkflow.mutate({
-                      event: event.id,
-                      data: event.sampleData
-                    });
-                  }}
-                  disabled={!isN8nConnected || isTriggering}
-                  className="w-full"
-                  data-testid={`button-trigger-${event.id}`}
-                >
-                  {isTriggering ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Triggering...
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="w-4 h-4 mr-2" />
-                      Test Trigger
-                    </>
-                  )}
-                </Button>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Badge variant="outline">{template.category}</Badge>
+                    <p className="text-sm text-muted-foreground">
+                      Trigger: <code className="text-xs">{template.triggerType}</code>
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => activateTemplate.mutate(template.id)}
+                    disabled={activateTemplate.isPending}
+                    className="w-full"
+                  >
+                    {activateTemplate.isPending ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Activating...
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-4 h-4 mr-2" />
+                        Activate Template
+                      </>
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+      </Tabs>
 
       <Card>
         <CardHeader>

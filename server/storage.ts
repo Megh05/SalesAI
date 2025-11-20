@@ -135,9 +135,11 @@ export class DatabaseStorage implements IStorage {
     return userWithoutPassword;
   }
 
-  async getUserByEmail(email: string) {
+  async getUserByEmail(email: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.email, email));
-    return user;
+    if (!user) return undefined;
+    const { password: _, ...userWithoutPassword } = user;
+    return userWithoutPassword;
   }
 
   async createUser(userData: UpsertUser): Promise<User> {
@@ -372,7 +374,7 @@ export class DatabaseStorage implements IStorage {
   async getTeams(userId: string): Promise<Team[]> {
     // Get teams where user is the owner
     const ownedTeams = await db.select().from(teams).where(eq(teams.ownerId, userId));
-    
+
     // Get teams where user is a member
     const memberTeams = await db
       .select({ team: teams })
@@ -383,7 +385,7 @@ export class DatabaseStorage implements IStorage {
     // Combine and deduplicate
     const allTeams = [...ownedTeams, ...memberTeams.map(m => m.team)];
     const uniqueTeams = Array.from(new Map(allTeams.map(team => [team.id, team])).values());
-    
+
     return uniqueTeams;
   }
 
@@ -394,14 +396,14 @@ export class DatabaseStorage implements IStorage {
 
   async createTeam(teamData: InsertTeam): Promise<Team> {
     const [team] = await db.insert(teams).values(teamData).returning();
-    
+
     // Automatically add the owner as a team member with owner role
     await db.insert(teamMembers).values({
       teamId: team.id,
       userId: team.ownerId,
       role: 'owner',
     });
-    
+
     return team;
   }
 
