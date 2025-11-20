@@ -1,0 +1,203 @@
+You are an expert full-stack software engineer, systems architect, and UI/UX designer. Your task is to implement a complete Team Management + RBAC (Role-Based Access Control) system inside our AI-powered Sales Automation Platform.
+⚠️ Important:
+Our database is SQLite, not PostgreSQL.
+All schema designs, migrations, relational structures, and queries MUST be fully compatible with SQLite’s limitations, including:
+No JSONB
+No array types
+No advanced indexing syntax
+Limited ALTER TABLE support
+Need for join tables instead of complex relations
+Use of simple enums via string fields
+🎯 Goal
+Add a full-featured team system with:
+Organizations
+Teams
+Members
+Invitations
+Role & permission system
+AI-powered lead assignment
+Visibility rules
+Admin dashboards
+Everything must integrate into the existing codebase.
+🏗️ Tech Stack (Existing + Confirmed)
+Backend: Node.js (NestJS / Express)
+Frontend: Next.js + Tailwind CSS + ShadCN
+Database: SQLite + Prisma
+Auth: OAuth 2.0 (Google, LinkedIn)
+AI: Mistral API / OpenRouter
+Workflows: N8N (self-hosted)
+Integrations: Gmail API, LinkedIn API
+📦 FEATURE REQUIREMENTS
+1. SQLite-Compatible Entity Structure
+Create the following SQLite-friendly tables:
+Organization
+id (string)
+name (string)
+primaryDomain (string)
+ownerId (string)
+createdAt
+updatedAt
+Team
+id (string)
+organizationId (string)
+name (string)
+description (string)
+createdBy (string)
+createdAt
+updatedAt
+TeamMember
+id (string)
+teamId (string)
+userId (string)
+roleId (string)
+invitationStatus (string: "PENDING" | "ACCEPTED" | "DECLINED")
+createdAt
+updatedAt
+Role
+id (string)
+organizationId (string)
+name (string)
+description (string)
+isSystemRole (boolean)
+createdAt
+updatedAt
+Permission
+SQLite cannot store arrays → use many-to-many join table.
+Permission
+- id (string)
+- key (string)  → e.g. "leads.read", "members.invite"
+
+RolePermission
+- roleId
+- permissionId
+InvitationToken
+id (string)
+email (string)
+organizationId (string)
+teamId (string)
+token (string)
+status ("PENDING" | "USED" | "EXPIRED")
+expiresAt
+createdAt
+2. Invitation System (Gmail API)
+Admin creates an invite → system sends Gmail API email.
+Flow:
+Admin enters email
+System creates invitation token
+Send email via Gmail API
+User clicks magic link
+If new user → sign in using Google/LinkedIn OAuth
+Automatically attached to team
+If user exists → direct join
+Must generate:
+inviteMember()
+acceptInvite()
+resendInvite()
+expireInvite()
+SQLite-compatible:
+Ensure token table uses strings, not array or binary.
+Use Date strings rather than timestamptz.
+3. RBAC — SQLite-Compatible
+System roles:
+OWNER
+ADMIN
+SALES_MANAGER
+SALES_REP
+VIEWER
+Custom roles allowed.
+Permissions stored via a join table:
+RolePermission
+SQLite limitation → No JSON fields
+So permissions MUST be stored as separate rows.
+4. Lead Assignment System
+Include:
+Manual Assignment
+Assign lead/contact/company → team member.
+AI Auto Assignment
+Using Mistral/OpenRouter model:
+Evaluate workload
+Email activity
+Lead category match
+Time since last assignment
+Create endpoint:
+POST /ai/assignment/recommend
+Round Robin Assignment
+Toggle in organization settings.
+5. Visibility Rules
+Table-level & record-level access must follow:
+Role	Lead Access	Inbox	Workflows	Team Mgmt	Settings
+Owner	All	All	All	All	All
+Admin	All	All	All	All	All
+Sales Manager	Team only	Team only	Team only	Team	Limited
+Sales Rep	Own only	Own only	No	No	No
+Viewer	Read-only	No	No	No	No
+SQLite-friendly implementation:
+Use foreign keys and queries + server-side filter
+No row-level security → build filtering into controllers
+6. UI/UX Deliverables
+The AI must generate:
+Team Dashboard UI
+Team list
+Member list
+Role assignment dropdown
+Invitation table with statuses
+“Resend invite” button
+Permission inspector modal
+Member Profile
+User info
+Assigned leads
+Performance stats
+Activity timeline
+Role
+Permissions list
+Lead Assignment UX
+Fast search & filter
+AI suggestions
+Tooltip showing model reasoning
+Email Invitation UI
+Modal with email input
+List of pending invites
+Badge: Pending / Accepted / Declined
+All built using:
+Next.js
+ShadCN components
+TailwindCSS
+RadixUI primitives
+7. Backend Endpoints (SQLite Compatible)
+Team CRUD
+POST /teams
+GET /teams
+GET /teams/:id
+PATCH /teams/:id
+DELETE /teams/:id
+Members
+POST /teams/:id/members
+PATCH /teams/:id/members/:memberId
+DELETE /teams/:id/members/:memberId
+Invitations
+POST /teams/:id/invite
+POST /invites/:token/accept
+POST /invites/:token/decline
+POST /invites/:token/resend
+Role & Permissions
+GET /roles
+POST /roles
+PATCH /roles/:id
+DELETE /roles/:id
+
+GET /permissions
+8. Required Outputs From You (the AI Agent)
+You must generate:
+✓ Prisma schema updates (SQLite-safe)
+✓ Migration plan (given SQLite’s ALTER TABLE limitations)
+✓ Complete backend services + controllers
+✓ Frontend UI pages & components
+✓ Invitation email templates
+✓ Role-permission matrix
+✓ End-to-end flows
+✓ Tests (unit + integration)
+✓ API contracts (OpenAPI)
+✓ Example payloads
+✓ Deployment steps
+Everything MUST be compatible with SQLite and must not rely on unsupported features.
+Add improvements automatically if needed.
