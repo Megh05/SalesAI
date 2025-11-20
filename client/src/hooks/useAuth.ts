@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { User } from "@shared/schema";
 
 interface Organization {
@@ -22,7 +22,12 @@ export function useAuth() {
     return null;
   });
 
-  const setActiveOrgId = (orgId: string | null) => {
+  const { data: organizations } = useQuery<Organization[]>({
+    queryKey: ["/api/organizations"],
+    enabled: !!user,
+  });
+
+  const setActiveOrgId = useCallback((orgId: string | null) => {
     setActiveOrgIdState(orgId);
     if (typeof window !== 'undefined') {
       if (orgId) {
@@ -31,21 +36,15 @@ export function useAuth() {
         localStorage.removeItem('activeOrgId');
       }
     }
-  };
-
-  const { data: organizations } = useQuery<Organization[]>({
-    queryKey: ["/api/organizations"],
-    enabled: !!user,
-  });
+  }, []);
 
   const activeOrganization = organizations?.find(org => org.id === activeOrgId);
 
-  // Auto-select first organization if none selected
   useEffect(() => {
     if (organizations && organizations.length > 0 && !activeOrgId) {
       setActiveOrgId(organizations[0].id);
     }
-  }, [organizations, activeOrgId]);
+  }, [organizations, activeOrgId, setActiveOrgId]);
 
   return {
     user,

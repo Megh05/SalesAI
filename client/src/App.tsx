@@ -24,6 +24,9 @@ import Teams from "@/pages/teams";
 import RelationMap from "@/pages/relation-map";
 import Settings from "@/pages/settings";
 import OrganizationSettings from "@/pages/organization-settings";
+import RBACDashboard from "@/pages/rbac";
+import InvitationsHub from "@/pages/invitations";
+import MemberProfile from "@/pages/member-profile";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
 import { Loader2 } from "lucide-react";
@@ -41,6 +44,9 @@ function AuthenticatedRouter() {
       <Route path="/analytics" component={Analytics} />
       <Route path="/workflows" component={Workflows} />
       <Route path="/teams" component={Teams} />
+      <Route path="/rbac" component={RBACDashboard} />
+      <Route path="/invitations" component={InvitationsHub} />
+      <Route path="/members/:id" component={MemberProfile} />
       <Route path="/organization" component={OrganizationSettings} />
       <Route path="/settings" component={Settings} />
       <Route path="/login">{() => <Redirect to="/" />}</Route>
