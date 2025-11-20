@@ -2324,6 +2324,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Register new RBAC routes
+  const { registerRBACRoutes } = await import("./routes-rbac");
+  registerRBACRoutes(app);
+
   const httpServer = createServer(app);
 
   emailSyncService.initializeAutoSyncForConnectedUsers();

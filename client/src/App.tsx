@@ -11,6 +11,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { AICopilotChat } from "@/components/ai-copilot-chat";
 import { OrganizationSelector } from "@/components/organization-selector";
 import { useAuth } from "@/hooks/useAuth";
+import { OrganizationProvider } from "@/hooks/use-organization-context";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import SmartInbox from "@/pages/smart-inbox";
@@ -91,26 +92,28 @@ function AppContent() {
 
   if (isAuthenticated) {
     return (
-      <SidebarProvider style={style as React.CSSProperties}>
-        <div className="flex h-screen w-full">
-          <AppSidebar />
-          <div className="flex flex-col flex-1 overflow-hidden">
-            <header className="flex items-center justify-between px-6 py-3 border-b">
-              <SidebarTrigger data-testid="button-sidebar-toggle" />
-              <ThemeToggle />
-            </header>
-            <main className="flex-1 overflow-y-auto">
-              <AuthenticatedRouter />
-            </main>
+      <OrganizationProvider>
+        <SidebarProvider style={style as React.CSSProperties}>
+          <div className="flex h-screen w-full">
+            <AppSidebar />
+            <div className="flex flex-col flex-1 overflow-hidden">
+              <header className="flex items-center justify-between px-6 py-3 border-b">
+                <SidebarTrigger data-testid="button-sidebar-toggle" />
+                <ThemeToggle />
+              </header>
+              <main className="flex-1 overflow-y-auto">
+                <AuthenticatedRouter />
+              </main>
+            </div>
           </div>
-        </div>
-        <AICopilotChat />
-        <OrganizationSelector 
-          open={showOrgSelector} 
-          onClose={() => setShowOrgSelector(false)}
-          forceSelection={!hasOrganization}
-        />
-      </SidebarProvider>
+          <AICopilotChat />
+          <OrganizationSelector 
+            open={showOrgSelector} 
+            onClose={() => setShowOrgSelector(false)}
+            forceSelection={!hasOrganization}
+          />
+        </SidebarProvider>
+      </OrganizationProvider>
     );
   }
 
