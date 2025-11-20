@@ -45,6 +45,80 @@ export type User = Omit<typeof users.$inferSelect, 'password'>;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type LoginCredentials = z.infer<typeof loginSchema>;
 
+// Organizations
+export const organizations = sqliteTable("organizations", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  domain: text("domain"),
+  ownerId: text("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  settings: text("settings"), // JSON string for org-level settings
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
+export const insertOrganizationSchema = createInsertSchema(organizations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type Organization = typeof organizations.$inferSelect;
+export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
+
+// Roles
+export const roles = sqliteTable("roles", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  organizationId: text("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  isSystemRole: integer("is_system_role", { mode: "boolean" }).default(false),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
+export const insertRoleSchema = createInsertSchema(roles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type Role = typeof roles.$inferSelect;
+export type InsertRole = z.infer<typeof insertRoleSchema>;
+
+// Permissions
+export const permissions = sqliteTable("permissions", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  key: text("key").notNull().unique(),
+  resource: text("resource").notNull(),
+  action: text("action").notNull(),
+  description: text("description"),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
+export const insertPermissionSchema = createInsertSchema(permissions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type Permission = typeof permissions.$inferSelect;
+export type InsertPermission = z.infer<typeof insertPermissionSchema>;
+
+// RolePermissions (join table)
+export const rolePermissions = sqliteTable("role_permissions", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  roleId: text("role_id").notNull().references(() => roles.id, { onDelete: "cascade" }),
+  permissionId: text("permission_id").notNull().references(() => permissions.id, { onDelete: "cascade" }),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
+export const insertRolePermissionSchema = createInsertSchema(rolePermissions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type RolePermission = typeof rolePermissions.$inferSelect;
+export type InsertRolePermission = z.infer<typeof insertRolePermissionSchema>;
+
 // Companies
 export const companies = sqliteTable("companies", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -53,6 +127,7 @@ export const companies = sqliteTable("companies", {
   size: text("size"),
   location: text("location"),
   website: text("website"),
+  organizationId: text("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
@@ -76,6 +151,7 @@ export const contacts = sqliteTable("contacts", {
   phone: text("phone"),
   position: text("position"),
   companyId: text("company_id").references(() => companies.id, { onDelete: "set null" }),
+  organizationId: text("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
@@ -99,6 +175,8 @@ export const leads = sqliteTable("leads", {
   status: text("status").notNull().default("prospect"),
   contactId: text("contact_id").notNull().references(() => contacts.id, { onDelete: "cascade" }),
   companyId: text("company_id").references(() => companies.id, { onDelete: "set null" }),
+  organizationId: text("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
+  assignedTo: text("assigned_to").references(() => users.id, { onDelete: "set null" }),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
@@ -124,6 +202,7 @@ export const activities = sqliteTable("activities", {
   description: text("description"),
   contactId: text("contact_id").references(() => contacts.id, { onDelete: "cascade" }),
   leadId: text("lead_id").references(() => leads.id, { onDelete: "cascade" }),
+  organizationId: text("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
@@ -220,9 +299,34 @@ export const insertOAuthTokenSchema = createInsertSchema(oauthTokens).omit({
 export type InsertOAuthToken = z.infer<typeof insertOAuthTokenSchema>;
 export type OAuthToken = typeof oauthTokens.$inferSelect;
 
+// Invitation Tokens
+export const invitationTokens = sqliteTable("invitation_tokens", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  email: text("email").notNull(),
+  organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  teamId: text("team_id").references(() => teams.id, { onDelete: "cascade" }),
+  roleId: text("role_id").notNull().references(() => roles.id, { onDelete: "cascade" }),
+  token: text("token").notNull().unique(),
+  status: text("status").notNull().default("PENDING"), // PENDING, ACCEPTED, EXPIRED, DECLINED
+  invitedBy: text("invited_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
+export const insertInvitationTokenSchema = createInsertSchema(invitationTokens).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InvitationToken = typeof invitationTokens.$inferSelect;
+export type InsertInvitationToken = z.infer<typeof insertInvitationTokenSchema>;
+
 // Teams
 export const teams = sqliteTable("teams", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   description: text("description"),
   ownerId: text("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -244,7 +348,9 @@ export const teamMembers = sqliteTable("team_members", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   teamId: text("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  role: text("role").notNull().default("member"), // 'owner', 'admin', 'member'
+  roleId: text("role_id").references(() => roles.id, { onDelete: "set null" }),
+  role: text("role").notNull().default("member"), // Deprecated: kept for backward compatibility
+  invitationStatus: text("invitation_status").default("ACCEPTED"), // PENDING, ACCEPTED, DECLINED
   joinedAt: integer("joined_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
@@ -255,6 +361,25 @@ export const insertTeamMemberSchema = createInsertSchema(teamMembers).omit({
 
 export type TeamMember = typeof teamMembers.$inferSelect;
 export type InsertTeamMember = z.infer<typeof insertTeamMemberSchema>;
+
+// Lead Assignments
+export const leadAssignments = sqliteTable("lead_assignments", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  leadId: text("lead_id").notNull().references(() => leads.id, { onDelete: "cascade" }),
+  assignedTo: text("assigned_to").notNull().references(() => users.id, { onDelete: "cascade" }),
+  assignedBy: text("assigned_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+  assignmentMethod: text("assignment_method").notNull(), // manual, ai, round_robin
+  aiReasoning: text("ai_reasoning"), // JSON string with AI explanation
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
+export const insertLeadAssignmentSchema = createInsertSchema(leadAssignments).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type LeadAssignment = typeof leadAssignments.$inferSelect;
+export type InsertLeadAssignment = z.infer<typeof insertLeadAssignmentSchema>;
 
 // Workflow Templates
 export const workflowTemplates = sqliteTable("workflow_templates", {

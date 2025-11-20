@@ -2002,6 +2002,328 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ========== RBAC ROUTES ==========
+  
+  // Helper to verify organization membership
+  async function verifyOrganizationMembership(userId: string, organizationId: string): Promise<boolean> {
+    const userOrgs = await storage.getOrganizations(userId);
+    return userOrgs.some(org => org.id === organizationId);
+  }
+  
+  // Organizations
+  app.get("/api/organizations", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const orgs = await storage.getOrganizations(userId);
+      res.json(orgs);
+    } catch (error: any) {
+      console.error("Error fetching organizations:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch organizations" });
+    }
+  });
+
+  app.get("/api/organizations/:id", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const orgId = req.params.id;
+      
+      if (!await verifyOrganizationMembership(userId, orgId)) {
+        return res.status(403).json({ message: "Access denied to this organization" });
+      }
+      
+      const org = await storage.getOrganization(orgId);
+      if (!org) {
+        return res.status(404).json({ message: "Organization not found" });
+      }
+      res.json(org);
+    } catch (error: any) {
+      console.error("Error fetching organization:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch organization" });
+    }
+  });
+
+  app.post("/api/organizations", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const { organizationService } = await import("./organization.service");
+      const result = await organizationService.createOrganizationForUser(
+        userId,
+        req.body.name,
+        req.body.domain
+      );
+      res.status(201).json(result);
+    } catch (error: any) {
+      console.error("Error creating organization:", error);
+      res.status(500).json({ message: error.message || "Failed to create organization" });
+    }
+  });
+
+  app.patch("/api/organizations/:id", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const orgId = req.params.id;
+      
+      const org = await storage.getOrganization(orgId);
+      if (!org) {
+        return res.status(404).json({ message: "Organization not found" });
+      }
+      
+      if (org.ownerId !== userId) {
+        return res.status(403).json({ message: "Only organization owner can update settings" });
+      }
+      
+      const updated = await storage.updateOrganization(orgId, req.body);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating organization:", error);
+      res.status(500).json({ message: error.message || "Failed to update organization" });
+    }
+  });
+
+  app.get("/api/organizations/:id/members", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const orgId = req.params.id;
+      
+      if (!await verifyOrganizationMembership(userId, orgId)) {
+        return res.status(403).json({ message: "Access denied to this organization" });
+      }
+      
+      const members = await storage.getOrganizationMembers(orgId);
+      res.json(members);
+    } catch (error: any) {
+      console.error("Error fetching organization members:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch members" });
+    }
+  });
+
+  // Roles
+  app.get("/api/roles", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const orgId = req.query.organizationId as string | undefined;
+      const roles = await storage.getRoles(orgId);
+      res.json(roles);
+    } catch (error: any) {
+      console.error("Error fetching roles:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch roles" });
+    }
+  });
+
+  app.get("/api/roles/:id", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const role = await storage.getRole(req.params.id);
+      if (!role) {
+        return res.status(404).json({ message: "Role not found" });
+      }
+      res.json(role);
+    } catch (error: any) {
+      console.error("Error fetching role:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch role" });
+    }
+  });
+
+  app.get("/api/roles/:id/permissions", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const permissions = await storage.getRolePermissions(req.params.id);
+      res.json(permissions);
+    } catch (error: any) {
+      console.error("Error fetching role permissions:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch permissions" });
+    }
+  });
+
+  app.post("/api/roles", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const role = await storage.createRole(req.body);
+      res.status(201).json(role);
+    } catch (error: any) {
+      console.error("Error creating role:", error);
+      res.status(500).json({ message: error.message || "Failed to create role" });
+    }
+  });
+
+  app.patch("/api/roles/:id", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const updated = await storage.updateRole(req.params.id, req.body);
+      if (!updated) {
+        return res.status(404).json({ message: "Role not found" });
+      }
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating role:", error);
+      res.status(500).json({ message: error.message || "Failed to update role" });
+    }
+  });
+
+  app.delete("/api/roles/:id", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const deleted = await storage.deleteRole(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Role not found" });
+      }
+      res.json({ message: "Role deleted successfully" });
+    } catch (error: any) {
+      console.error("Error deleting role:", error);
+      res.status(500).json({ message: error.message || "Failed to delete role" });
+    }
+  });
+
+  // Permissions
+  app.get("/api/permissions", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const permissions = await storage.getPermissions();
+      res.json(permissions);
+    } catch (error: any) {
+      console.error("Error fetching permissions:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch permissions" });
+    }
+  });
+
+  // Invitations
+  app.get("/api/invitations", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const orgId = req.query.organizationId as string;
+      if (!orgId) {
+        return res.status(400).json({ message: "Organization ID required" });
+      }
+      
+      if (!await verifyOrganizationMembership(userId, orgId)) {
+        return res.status(403).json({ message: "Access denied to this organization" });
+      }
+      
+      const invitations = await storage.getInvitations(orgId);
+      res.json(invitations);
+    } catch (error: any) {
+      console.error("Error fetching invitations:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch invitations" });
+    }
+  });
+
+  app.post("/api/invitations", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const { organizationId } = req.body;
+      
+      if (!await verifyOrganizationMembership(userId, organizationId)) {
+        return res.status(403).json({ message: "Access denied to this organization" });
+      }
+      
+      const { invitationService } = await import("./invitation.service");
+      
+      const invitation = await invitationService.createInvitation(
+        req.body.email,
+        organizationId,
+        req.body.roleId,
+        userId,
+        req.body.teamId
+      );
+      
+      await invitationService.sendInvitationEmail(invitation.id);
+      
+      res.status(201).json(invitation);
+    } catch (error: any) {
+      console.error("Error creating invitation:", error);
+      res.status(500).json({ message: error.message || "Failed to create invitation" });
+    }
+  });
+
+  app.post("/api/invitations/:id/resend", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const invitation = await storage.getInvitation(req.params.id);
+      
+      if (!invitation) {
+        return res.status(404).json({ message: "Invitation not found" });
+      }
+      
+      if (!await verifyOrganizationMembership(userId, invitation.organizationId)) {
+        return res.status(403).json({ message: "Access denied to this organization" });
+      }
+      
+      const { invitationService } = await import("./invitation.service");
+      const updated = await invitationService.resendInvitation(req.params.id);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error resending invitation:", error);
+      res.status(500).json({ message: error.message || "Failed to resend invitation" });
+    }
+  });
+
+  app.post("/api/invitations/accept", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const { invitationService } = await import("./invitation.service");
+      const invitation = await invitationService.acceptInvitation(req.body.token, userId);
+      res.json(invitation);
+    } catch (error: any) {
+      console.error("Error accepting invitation:", error);
+      res.status(500).json({ message: error.message || "Failed to accept invitation" });
+    }
+  });
+
+  // Lead Assignments
+  app.get("/api/leads/:leadId/assignment-recommendation", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const { leadId } = req.params;
+      const organizationId = req.query.organizationId as string;
+      
+      if (!organizationId) {
+        return res.status(400).json({ message: "Organization ID required" });
+      }
+      
+      if (!await verifyOrganizationMembership(userId, organizationId)) {
+        return res.status(403).json({ message: "Access denied to this organization" });
+      }
+      
+      const { assignmentService } = await import("./assignment.service");
+      const recommendation = await assignmentService.getAIRecommendation(leadId, organizationId);
+      
+      res.json(recommendation);
+    } catch (error: any) {
+      console.error("Error getting assignment recommendation:", error);
+      res.status(500).json({ message: error.message || "Failed to get recommendation" });
+    }
+  });
+
+  app.post("/api/leads/:leadId/assign", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const { leadId } = req.params;
+      const userId = req.user!.id;
+      const { assignedTo, method, aiReasoning, organizationId } = req.body;
+      
+      if (organizationId && !await verifyOrganizationMembership(userId, organizationId)) {
+        return res.status(403).json({ message: "Access denied to this organization" });
+      }
+      
+      const { assignmentService } = await import("./assignment.service");
+      const assignment = await assignmentService.assignLead(
+        leadId,
+        assignedTo,
+        userId,
+        method,
+        aiReasoning
+      );
+      
+      res.status(201).json(assignment);
+    } catch (error: any) {
+      console.error("Error assigning lead:", error);
+      res.status(500).json({ message: error.message || "Failed to assign lead" });
+    }
+  });
+
+  app.get("/api/leads/:leadId/assignments", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const { leadId } = req.params;
+      const assignments = await storage.getLeadAssignments(leadId);
+      res.json(assignments);
+    } catch (error: any) {
+      console.error("Error fetching lead assignments:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch assignments" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   emailSyncService.initializeAutoSyncForConnectedUsers();

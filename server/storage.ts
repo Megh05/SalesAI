@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, or, inArray } from "drizzle-orm";
 import {
   type User,
   type UpsertUser,
@@ -27,6 +27,16 @@ import {
   type InsertWorkflowTemplateStep,
   type UserWorkflow,
   type InsertUserWorkflow,
+  type Organization,
+  type InsertOrganization,
+  type Role,
+  type InsertRole,
+  type Permission,
+  type RolePermission,
+  type InvitationToken,
+  type InsertInvitationToken,
+  type LeadAssignment,
+  type InsertLeadAssignment,
   users,
   companies,
   contacts,
@@ -40,6 +50,12 @@ import {
   workflowTemplates,
   workflowTemplateSteps,
   userWorkflows,
+  organizations,
+  roles,
+  permissions,
+  rolePermissions,
+  invitationTokens,
+  leadAssignments,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -124,6 +140,46 @@ export interface IStorage {
   createUserWorkflow(workflow: InsertUserWorkflow): Promise<UserWorkflow>;
   updateUserWorkflow(id: string, userId: string, workflow: Partial<InsertUserWorkflow>): Promise<UserWorkflow | undefined>;
   deleteUserWorkflow(id: string, userId: string): Promise<boolean>;
+
+  // Organization operations
+  getOrganizations(userId: string): Promise<Organization[]>;
+  getOrganization(id: string): Promise<Organization | undefined>;
+  createOrganization(org: InsertOrganization): Promise<Organization>;
+  updateOrganization(id: string, org: Partial<InsertOrganization>): Promise<Organization | undefined>;
+  deleteOrganization(id: string, ownerId: string): Promise<boolean>;
+  getOrganizationMembers(organizationId: string): Promise<(TeamMember & { user: User })[]>;
+
+  // Role operations
+  getRoles(organizationId?: string): Promise<Role[]>;
+  getRole(id: string): Promise<Role | undefined>;
+  getRoleByName(name: string): Promise<Role | undefined>;
+  createRole(role: InsertRole): Promise<Role>;
+  updateRole(id: string, role: Partial<InsertRole>): Promise<Role | undefined>;
+  deleteRole(id: string): Promise<boolean>;
+
+  // Permission operations
+  getPermissions(): Promise<Permission[]>;
+  getPermission(id: string): Promise<Permission | undefined>;
+
+  // RolePermission operations
+  getRolePermissions(roleId: string): Promise<Permission[]>;
+  addRolePermission(roleId: string, permissionId: string): Promise<RolePermission>;
+  removeRolePermission(roleId: string, permissionId: string): Promise<boolean>;
+
+  // Invitation operations
+  getInvitations(organizationId: string): Promise<InvitationToken[]>;
+  getInvitation(id: string): Promise<InvitationToken | undefined>;
+  getInvitationByToken(token: string): Promise<InvitationToken | undefined>;
+  createInvitation(invitation: InsertInvitationToken): Promise<InvitationToken>;
+  updateInvitation(id: string, invitation: Partial<InsertInvitationToken>): Promise<InvitationToken | undefined>;
+  deleteInvitation(id: string): Promise<boolean>;
+
+  // Lead Assignment operations
+  createLeadAssignment(assignment: InsertLeadAssignment): Promise<LeadAssignment>;
+  getLeadAssignments(leadId: string): Promise<LeadAssignment[]>;
+
+  // Helper operations
+  getUserById(userId: string): Promise<User | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -545,6 +601,198 @@ export class DatabaseStorage implements IStorage {
       .delete(userWorkflows)
       .where(and(eq(userWorkflows.id, id), eq(userWorkflows.userId, userId)));
     return result.changes > 0;
+  }
+
+  // Organization operations
+  async getOrganizations(userId: string): Promise<Organization[]> {
+    const owned = await db.select().from(organizations).where(eq(organizations.ownerId, userId));
+    const memberOrgs = await db
+      .select({ org: organizations })
+      .from(teamMembers)
+      .innerJoin(teams, eq(teamMembers.teamId, teams.id))
+      .innerJoin(organizations, eq(teams.organizationId, organizations.id))
+      .where(eq(teamMembers.userId, userId));
+    
+    const allOrgs = [...owned, ...memberOrgs.map(m => m.org)];
+    return Array.from(new Map(allOrgs.map(o => [o.id, o])).values());
+  }
+
+  async getOrganization(id: string): Promise<Organization | undefined> {
+    const [org] = await db.select().from(organizations).where(eq(organizations.id, id));
+    return org;
+  }
+
+  async createOrganization(orgData: InsertOrganization): Promise<Organization> {
+    const [org] = await db.insert(organizations).values(orgData).returning();
+    return org;
+  }
+
+  async updateOrganization(id: string, orgData: Partial<InsertOrganization>): Promise<Organization | undefined> {
+    const [updated] = await db.update(organizations)
+      .set({ ...orgData, updatedAt: new Date() })
+      .where(eq(organizations.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteOrganization(id: string, ownerId: string): Promise<boolean> {
+    const result = await db.delete(organizations)
+      .where(and(eq(organizations.id, id), eq(organizations.ownerId, ownerId)));
+    return result.changes > 0;
+  }
+
+  async getOrganizationMembers(organizationId: string): Promise<(TeamMember & { user: User })[]> {
+    const orgTeams = await db.select().from(teams).where(eq(teams.organizationId, organizationId));
+    const teamIds = orgTeams.map(t => t.id);
+    
+    if (teamIds.length === 0) return [];
+    
+    const members = await db
+      .select({ member: teamMembers, user: users })
+      .from(teamMembers)
+      .innerJoin(users, eq(teamMembers.userId, users.id))
+      .where(inArray(teamMembers.teamId, teamIds));
+    
+    return members.map(m => {
+      const { password: _, ...userWithoutPassword } = m.user;
+      return { ...m.member, user: userWithoutPassword };
+    });
+  }
+
+  // Role operations
+  async getRoles(organizationId?: string): Promise<Role[]> {
+    if (organizationId) {
+      return db.select().from(roles)
+        .where(or(eq(roles.organizationId, organizationId), eq(roles.isSystemRole, true)));
+    }
+    return db.select().from(roles).where(eq(roles.isSystemRole, true));
+  }
+
+  async getRole(id: string): Promise<Role | undefined> {
+    const [role] = await db.select().from(roles).where(eq(roles.id, id));
+    return role;
+  }
+
+  async getRoleByName(name: string): Promise<Role | undefined> {
+    const [role] = await db.select().from(roles).where(eq(roles.name, name));
+    return role;
+  }
+
+  async createRole(roleData: InsertRole): Promise<Role> {
+    const [role] = await db.insert(roles).values(roleData).returning();
+    return role;
+  }
+
+  async updateRole(id: string, roleData: Partial<InsertRole>): Promise<Role | undefined> {
+    const [updated] = await db.update(roles)
+      .set({ ...roleData, updatedAt: new Date() })
+      .where(eq(roles.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteRole(id: string): Promise<boolean> {
+    const result = await db.delete(roles).where(eq(roles.id, id));
+    return result.changes > 0;
+  }
+
+  // Permission operations
+  async getPermissions(): Promise<Permission[]> {
+    return db.select().from(permissions);
+  }
+
+  async getPermission(id: string): Promise<Permission | undefined> {
+    const [perm] = await db.select().from(permissions).where(eq(permissions.id, id));
+    return perm;
+  }
+
+  // RolePermission operations
+  async getRolePermissions(roleId: string): Promise<Permission[]> {
+    const rolePerms = await db
+      .select({ permission: permissions })
+      .from(rolePermissions)
+      .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
+      .where(eq(rolePermissions.roleId, roleId));
+    
+    return rolePerms.map(rp => rp.permission);
+  }
+
+  async addRolePermission(roleId: string, permissionId: string): Promise<RolePermission> {
+    const [rolePerm] = await db.insert(rolePermissions)
+      .values({ roleId, permissionId })
+      .returning();
+    return rolePerm;
+  }
+
+  async removeRolePermission(roleId: string, permissionId: string): Promise<boolean> {
+    const result = await db.delete(rolePermissions)
+      .where(and(
+        eq(rolePermissions.roleId, roleId),
+        eq(rolePermissions.permissionId, permissionId)
+      ));
+    return result.changes > 0;
+  }
+
+  // Invitation operations
+  async getInvitations(organizationId: string): Promise<InvitationToken[]> {
+    return db.select().from(invitationTokens)
+      .where(eq(invitationTokens.organizationId, organizationId))
+      .orderBy(desc(invitationTokens.createdAt));
+  }
+
+  async getInvitation(id: string): Promise<InvitationToken | undefined> {
+    const [invitation] = await db.select().from(invitationTokens)
+      .where(eq(invitationTokens.id, id));
+    return invitation;
+  }
+
+  async getInvitationByToken(token: string): Promise<InvitationToken | undefined> {
+    const [invitation] = await db.select().from(invitationTokens)
+      .where(eq(invitationTokens.token, token));
+    return invitation;
+  }
+
+  async createInvitation(invitationData: InsertInvitationToken): Promise<InvitationToken> {
+    const [invitation] = await db.insert(invitationTokens)
+      .values(invitationData)
+      .returning();
+    return invitation;
+  }
+
+  async updateInvitation(id: string, invitationData: Partial<InsertInvitationToken>): Promise<InvitationToken | undefined> {
+    const [updated] = await db.update(invitationTokens)
+      .set({ ...invitationData, updatedAt: new Date() })
+      .where(eq(invitationTokens.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteInvitation(id: string): Promise<boolean> {
+    const result = await db.delete(invitationTokens)
+      .where(eq(invitationTokens.id, id));
+    return result.changes > 0;
+  }
+
+  // Lead Assignment operations
+  async createLeadAssignment(assignmentData: InsertLeadAssignment): Promise<LeadAssignment> {
+    const [assignment] = await db.insert(leadAssignments)
+      .values(assignmentData)
+      .returning();
+    return assignment;
+  }
+
+  async getLeadAssignments(leadId: string): Promise<LeadAssignment[]> {
+    return db.select().from(leadAssignments)
+      .where(eq(leadAssignments.leadId, leadId))
+      .orderBy(desc(leadAssignments.createdAt));
+  }
+
+  // Helper method to get user by ID (needed for services)
+  async getUserById(userId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    if (!user) return undefined;
+    const { password: _, ...userWithoutPassword } = user;
+    return userWithoutPassword;
   }
 }
 
