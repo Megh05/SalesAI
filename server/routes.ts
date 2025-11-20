@@ -1646,6 +1646,274 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Teams API
+  app.get("/api/teams", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const teams = await storage.getTeams(userId);
+      res.json(teams);
+    } catch (error: any) {
+      console.error("Error fetching teams:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch teams" });
+    }
+  });
+
+  app.post("/api/teams", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const { name, description } = req.body;
+
+      if (!name) {
+        return res.status(400).json({ message: "Team name is required" });
+      }
+
+      const team = await storage.createTeam({
+        name,
+        description,
+        ownerId: userId,
+      });
+
+      res.status(201).json(team);
+    } catch (error: any) {
+      console.error("Error creating team:", error);
+      res.status(500).json({ message: error.message || "Failed to create team" });
+    }
+  });
+
+  app.patch("/api/teams/:id", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const { id } = req.params;
+      const { name, description } = req.body;
+
+      const updated = await storage.updateTeam(id, userId, {
+        name,
+        description,
+      });
+
+      if (!updated) {
+        return res.status(404).json({ message: "Team not found or you don't have permission" });
+      }
+
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating team:", error);
+      res.status(500).json({ message: error.message || "Failed to update team" });
+    }
+  });
+
+  app.delete("/api/teams/:id", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const { id } = req.params;
+
+      const deleted = await storage.deleteTeam(id, userId);
+
+      if (!deleted) {
+        return res.status(404).json({ message: "Team not found or you don't have permission" });
+      }
+
+      res.json({ message: "Team deleted successfully" });
+    } catch (error: any) {
+      console.error("Error deleting team:", error);
+      res.status(500).json({ message: error.message || "Failed to delete team" });
+    }
+  });
+
+  // Team Members API
+  app.get("/api/teams/:teamId/members", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const { teamId } = req.params;
+      const members = await storage.getTeamMembers(teamId);
+      res.json(members);
+    } catch (error: any) {
+      console.error("Error fetching team members:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch team members" });
+    }
+  });
+
+  app.post("/api/teams/:teamId/members", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const { teamId } = req.params;
+      const { email, role } = req.body;
+
+      if (!email) {
+        return res.status(400).json({ message: "User email is required" });
+      }
+
+      // Find user by email
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        return res.status(404).json({ message: "User not found with that email" });
+      }
+
+      // Check if already a member
+      const existing = await storage.getTeamMember(teamId, user.id);
+      if (existing) {
+        return res.status(400).json({ message: "User is already a team member" });
+      }
+
+      const member = await storage.addTeamMember({
+        teamId,
+        userId: user.id,
+        role: role || 'member',
+      });
+
+      res.status(201).json(member);
+    } catch (error: any) {
+      console.error("Error adding team member:", error);
+      res.status(500).json({ message: error.message || "Failed to add team member" });
+    }
+  });
+
+  app.patch("/api/teams/:teamId/members/:userId", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const { teamId, userId } = req.params;
+      const { role } = req.body;
+
+      if (!role) {
+        return res.status(400).json({ message: "Role is required" });
+      }
+
+      const updated = await storage.updateTeamMemberRole(teamId, userId, role);
+
+      if (!updated) {
+        return res.status(404).json({ message: "Team member not found" });
+      }
+
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating team member role:", error);
+      res.status(500).json({ message: error.message || "Failed to update team member" });
+    }
+  });
+
+  app.delete("/api/teams/:teamId/members/:userId", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const { teamId, userId } = req.params;
+
+      const removed = await storage.removeTeamMember(teamId, userId);
+
+      if (!removed) {
+        return res.status(404).json({ message: "Team member not found" });
+      }
+
+      res.json({ message: "Team member removed successfully" });
+    } catch (error: any) {
+      console.error("Error removing team member:", error);
+      res.status(500).json({ message: error.message || "Failed to remove team member" });
+    }
+  });
+
+  // Workflow Templates API
+  app.get("/api/workflow-templates", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const templates = await storage.getWorkflowTemplates();
+      res.json(templates);
+    } catch (error: any) {
+      console.error("Error fetching workflow templates:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch workflow templates" });
+    }
+  });
+
+  app.get("/api/workflow-templates/:id", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const template = await storage.getWorkflowTemplate(id);
+
+      if (!template) {
+        return res.status(404).json({ message: "Workflow template not found" });
+      }
+
+      res.json(template);
+    } catch (error: any) {
+      console.error("Error fetching workflow template:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch workflow template" });
+    }
+  });
+
+  // User Workflows API
+  app.get("/api/workflows", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const workflows = await storage.getUserWorkflows(userId);
+      res.json(workflows);
+    } catch (error: any) {
+      console.error("Error fetching user workflows:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch workflows" });
+    }
+  });
+
+  app.post("/api/workflows/clone/:templateId", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const { templateId } = req.params;
+      const { name, customConfig } = req.body;
+
+      // Get the template
+      const template = await storage.getWorkflowTemplate(templateId);
+      if (!template) {
+        return res.status(404).json({ message: "Workflow template not found" });
+      }
+
+      // Create user workflow from template
+      const workflow = await storage.createUserWorkflow({
+        userId,
+        templateId,
+        name: name || template.name,
+        description: template.description,
+        triggerType: template.triggerType,
+        isActive: true,
+      });
+
+      res.status(201).json(workflow);
+    } catch (error: any) {
+      console.error("Error cloning workflow template:", error);
+      res.status(500).json({ message: error.message || "Failed to clone workflow template" });
+    }
+  });
+
+  app.patch("/api/workflows/:id", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const { id } = req.params;
+      const { name, description, isActive } = req.body;
+
+      const updated = await storage.updateUserWorkflow(id, userId, {
+        name,
+        description,
+        isActive,
+      });
+
+      if (!updated) {
+        return res.status(404).json({ message: "Workflow not found" });
+      }
+
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating workflow:", error);
+      res.status(500).json({ message: error.message || "Failed to update workflow" });
+    }
+  });
+
+  app.delete("/api/workflows/:id", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const { id } = req.params;
+
+      const deleted = await storage.deleteUserWorkflow(id, userId);
+
+      if (!deleted) {
+        return res.status(404).json({ message: "Workflow not found" });
+      }
+
+      res.json({ message: "Workflow deleted successfully" });
+    } catch (error: any) {
+      console.error("Error deleting workflow:", error);
+      res.status(500).json({ message: error.message || "Failed to delete workflow" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   emailSyncService.initializeAutoSyncForConnectedUsers();
