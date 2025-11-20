@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -8,6 +9,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AICopilotChat } from "@/components/ai-copilot-chat";
+import { OrganizationSelector } from "@/components/organization-selector";
 import { useAuth } from "@/hooks/useAuth";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
@@ -18,7 +20,7 @@ import Contacts from "@/pages/contacts";
 import Activities from "@/pages/activities";
 import Analytics from "@/pages/analytics";
 import Workflows from "@/pages/workflows";
-import Teams from "@/pages/teams"; // Assuming Teams page component is available
+import Teams from "@/pages/teams";
 import RelationMap from "@/pages/relation-map";
 import Settings from "@/pages/settings";
 import Login from "@/pages/login";
@@ -57,12 +59,19 @@ function UnauthenticatedRouter() {
 }
 
 function AppContent() {
-  const { user, isLoading, isAuthenticated } = useAuth();
+  const { user, isLoading, isAuthenticated, hasOrganization, organizations } = useAuth();
+  const [showOrgSelector, setShowOrgSelector] = useState(false);
 
   const style = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
   };
+
+  useEffect(() => {
+    if (isAuthenticated && organizations.length === 0) {
+      setShowOrgSelector(true);
+    }
+  }, [isAuthenticated, organizations]);
 
   if (isLoading) {
     return (
@@ -88,6 +97,11 @@ function AppContent() {
           </div>
         </div>
         <AICopilotChat />
+        <OrganizationSelector 
+          open={showOrgSelector} 
+          onClose={() => setShowOrgSelector(false)}
+          forceSelection={!hasOrganization}
+        />
       </SidebarProvider>
     );
   }

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   BarChart3,
   Building2,
@@ -11,6 +12,7 @@ import {
   Workflow,
   Network,
   UserPlus,
+  ChevronDown,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -31,8 +33,11 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { OrganizationSelector } from "@/components/organization-selector";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
 import { queryClient } from "@/lib/queryClient";
@@ -101,9 +106,10 @@ const secondaryNavItems = [
 
 export function AppSidebar() {
   const [location] = useLocation();
-  const { user } = useAuth();
+  const { user, activeOrganization, organizations, setActiveOrgId } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const [showOrgSelector, setShowOrgSelector] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -129,14 +135,60 @@ export function AppSidebar() {
 
   return (
     <Sidebar data-testid="sidebar-main">
-      <SidebarHeader className="p-4 border-b">
+      <SidebarHeader className="p-4 border-b space-y-3">
         <div className="flex items-center gap-2">
           <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center">
             <Zap className="h-5 w-5 text-primary-foreground" />
           </div>
           <span className="font-semibold text-lg">SalesPilot</span>
         </div>
+        
+        {activeOrganization && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="outline" 
+                className="w-full justify-between gap-2" 
+                data-testid="button-org-selector"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <Building2 className="h-4 w-4 flex-shrink-0" />
+                  <span className="truncate text-sm">{activeOrganization.name}</span>
+                </div>
+                <ChevronDown className="h-4 w-4 flex-shrink-0" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuLabel>Organizations</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {organizations.map((org) => (
+                <DropdownMenuItem
+                  key={org.id}
+                  onClick={() => setActiveOrgId(org.id)}
+                  className={org.id === activeOrganization.id ? "bg-accent" : ""}
+                  data-testid={`org-switch-${org.id}`}
+                >
+                  <div className="flex flex-col gap-1">
+                    <span>{org.name}</span>
+                    {org.domain && (
+                      <span className="text-xs text-muted-foreground">{org.domain}</span>
+                    )}
+                  </div>
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setShowOrgSelector(true)} data-testid="button-create-org">
+                <Building2 className="mr-2 h-4 w-4" />
+                <span>Create Organization</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </SidebarHeader>
+      <OrganizationSelector 
+        open={showOrgSelector} 
+        onClose={() => setShowOrgSelector(false)} 
+      />
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Main</SidebarGroupLabel>
