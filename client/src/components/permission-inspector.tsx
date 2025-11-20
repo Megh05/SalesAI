@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Shield, CheckCircle2, Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/hooks/useAuth";
 
 interface PermissionInspectorProps {
   open: boolean;
@@ -42,9 +43,15 @@ export function PermissionInspector({
   roleId,
   title = "Permissions"
 }: PermissionInspectorProps) {
+  const { activeOrgId } = useAuth();
+  
   const { data: permissions, isLoading } = useQuery<Permission[]>({
-    queryKey: roleId ? ["/api/roles", roleId, "permissions"] : userId ? ["/api/users", userId, "permissions"] : [],
-    enabled: open && (!!roleId || !!userId),
+    queryKey: roleId 
+      ? ["/api/roles", roleId, "permissions", { organizationId: activeOrgId }] 
+      : userId 
+      ? ["/api/users", userId, "permissions", { organizationId: activeOrgId }] 
+      : [],
+    enabled: open && !!activeOrgId && (!!roleId || !!userId),
   });
 
   const groupedPermissions = permissions?.reduce((acc, perm) => {

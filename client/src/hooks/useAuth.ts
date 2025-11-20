@@ -39,14 +39,16 @@ export function useAuth() {
     }
     queryClient.removeQueries({
       predicate: (query) => {
-        const key = query.queryKey[0];
-        return typeof key === 'string' && (
-          key.includes('/api/roles') ||
-          key.includes('/api/invitations') ||
-          key.includes('/api/teams') ||
-          key.includes('/api/team-members') ||
-          key.includes('/api/leads') ||
-          key.includes('/api/activities')
+        return query.queryKey.some(segment => 
+          typeof segment === 'string' && (
+            segment.includes('/api/roles') ||
+            segment.includes('/api/invitations') ||
+            segment.includes('/api/teams') ||
+            segment.includes('/api/team-members') ||
+            segment.includes('/api/leads') ||
+            segment.includes('/api/activities') ||
+            segment.includes('/api/users')
+          )
         );
       },
     });

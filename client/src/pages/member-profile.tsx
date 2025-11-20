@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRoute } from "wouter";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -48,23 +49,24 @@ interface ActivityRecord {
 }
 
 export default function MemberProfile() {
+  const { activeOrgId } = useAuth();
   const [, params] = useRoute("/members/:id");
   const memberId = params?.id;
   const [showPermissions, setShowPermissions] = useState(false);
 
   const { data: member, isLoading: memberLoading } = useQuery<Member>({
-    queryKey: ["/api/team-members", memberId],
-    enabled: !!memberId,
+    queryKey: ["/api/team-members", memberId, { organizationId: activeOrgId }],
+    enabled: !!memberId && !!activeOrgId,
   });
 
   const { data: leads = [], isLoading: leadsLoading } = useQuery<Lead[]>({
-    queryKey: ["/api/leads", { assignedTo: member?.userId }],
-    enabled: !!member?.userId,
+    queryKey: ["/api/leads", { assignedTo: member?.userId, organizationId: activeOrgId }],
+    enabled: !!member?.userId && !!activeOrgId,
   });
 
   const { data: activities = [], isLoading: activitiesLoading } = useQuery<ActivityRecord[]>({
-    queryKey: ["/api/activities", { userId: member?.userId }],
-    enabled: !!member?.userId,
+    queryKey: ["/api/activities", { userId: member?.userId, organizationId: activeOrgId }],
+    enabled: !!member?.userId && !!activeOrgId,
   });
 
   if (memberLoading) {
