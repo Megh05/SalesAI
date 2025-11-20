@@ -13,8 +13,25 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
   next();
 }
 
+export function extractOrganization(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  const orgId = 
+    req.headers['x-organization-id'] ||
+    req.params.organizationId || 
+    req.body.organizationId || 
+    req.query.organizationId;
+  
+  if (orgId) {
+    req.organizationId = orgId as string;
+  }
+  next();
+}
+
 export function requireOrganization(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-  const orgId = req.params.organizationId || req.body.organizationId || req.query.organizationId;
+  const orgId = 
+    req.headers['x-organization-id'] ||
+    req.params.organizationId || 
+    req.body.organizationId || 
+    req.query.organizationId;
   if (!orgId) {
     return res.status(400).json({ error: 'Organization ID required' });
   }

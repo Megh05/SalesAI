@@ -98,6 +98,11 @@ const secondaryNavItems = [
     icon: UserPlus,
   },
   {
+    title: "Organization",
+    url: "/organization",
+    icon: Building2,
+  },
+  {
     title: "Settings",
     url: "/settings",
     icon: Settings,
