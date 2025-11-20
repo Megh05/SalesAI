@@ -55,7 +55,7 @@ export default function RBACDashboard() {
   const [selectedPermissions, setSelectedPermissions] = useState<Set<string>>(new Set());
 
   const { data: roles, isLoading: rolesLoading } = useQuery<Role[]>({
-    queryKey: ["/api/roles"],
+    queryKey: ["/api/roles", { organizationId: activeOrgId }],
     enabled: !!activeOrgId,
   });
 
@@ -73,7 +73,7 @@ export default function RBACDashboard() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/roles"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/roles", { organizationId: activeOrgId }] });
       setShowCreateRole(false);
       setNewRoleName("");
       setNewRoleDescription("");

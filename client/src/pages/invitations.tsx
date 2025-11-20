@@ -69,17 +69,17 @@ export default function InvitationsHub() {
   const [activeTab, setActiveTab] = useState("all");
 
   const { data: invitations, isLoading: invitationsLoading } = useQuery<Invitation[]>({
-    queryKey: ["/api/invitations"],
+    queryKey: ["/api/invitations", { organizationId: activeOrgId }],
     enabled: !!activeOrgId,
   });
 
   const { data: teams } = useQuery<Team[]>({
-    queryKey: ["/api/teams"],
+    queryKey: ["/api/teams", { organizationId: activeOrgId }],
     enabled: !!activeOrgId,
   });
 
   const { data: roles } = useQuery<Role[]>({
-    queryKey: ["/api/roles"],
+    queryKey: ["/api/roles", { organizationId: activeOrgId }],
     enabled: !!activeOrgId,
   });
 
@@ -97,7 +97,7 @@ export default function InvitationsHub() {
       return results;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/invitations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/invitations", { organizationId: activeOrgId }] });
       setShowBulkInvite(false);
       setEmails("");
       setSelectedTeam("");
@@ -122,7 +122,7 @@ export default function InvitationsHub() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/invitations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/invitations", { organizationId: activeOrgId }] });
       toast({
         title: "Invitation resent",
         description: "Invitation has been resent successfully",

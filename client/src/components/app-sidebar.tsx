@@ -13,6 +13,8 @@ import {
   Network,
   UserPlus,
   ChevronDown,
+  Shield,
+  Mail,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -96,6 +98,16 @@ const secondaryNavItems = [
     title: "Teams",
     url: "/teams",
     icon: UserPlus,
+  },
+  {
+    title: "RBAC",
+    url: "/rbac",
+    icon: Shield,
+  },
+  {
+    title: "Invitations",
+    url: "/invitations",
+    icon: Mail,
   },
   {
     title: "Organization",

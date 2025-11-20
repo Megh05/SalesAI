@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,20 +19,29 @@ interface OrganizationSettings {
 export default function OrganizationSettings() {
   const { activeOrganization, activeOrgId } = useAuth();
   const { toast } = useToast();
-  const [name, setName] = useState(activeOrganization?.name || "");
-  const [domain, setDomain] = useState(activeOrganization?.domain || "");
+  const [name, setName] = useState("");
+  const [domain, setDomain] = useState("");
+  const [roundRobinEnabled, setRoundRobinEnabled] = useState(false);
+  const [aiAssignmentEnabled, setAiAssignmentEnabled] = useState(true);
 
   const { data: org, isLoading } = useQuery({
     queryKey: ["/api/organizations", activeOrgId],
     enabled: !!activeOrgId,
   });
 
-  const settings: OrganizationSettings = org?.settings 
-    ? (typeof org.settings === 'string' ? JSON.parse(org.settings) : org.settings)
-    : { roundRobinEnabled: false, aiAssignmentEnabled: true };
-
-  const [roundRobinEnabled, setRoundRobinEnabled] = useState(settings.roundRobinEnabled);
-  const [aiAssignmentEnabled, setAiAssignmentEnabled] = useState(settings.aiAssignmentEnabled);
+  useEffect(() => {
+    if (org) {
+      setName(org.name || "");
+      setDomain(org.domain || "");
+      
+      const settings: OrganizationSettings = org.settings 
+        ? (typeof org.settings === 'string' ? JSON.parse(org.settings) : org.settings)
+        : { roundRobinEnabled: false, aiAssignmentEnabled: true };
+      
+      setRoundRobinEnabled(settings.roundRobinEnabled);
+      setAiAssignmentEnabled(settings.aiAssignmentEnabled);
+    }
+  }, [org]);
 
   const updateOrg = useMutation({
     mutationFn: async (data: {
@@ -43,9 +52,10 @@ export default function OrganizationSettings() {
       const res = await apiRequest("PATCH", `/api/organizations/${activeOrgId}`, data);
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/organizations"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/organizations", activeOrgId] });
+    onSuccess: async (data) => {
+      queryClient.setQueryData(["/api/organizations", activeOrgId], data);
+      await queryClient.invalidateQueries({ queryKey: ["/api/organizations"], exact: true });
+      
       toast({
         title: "Settings saved",
         description: "Organization settings have been updated successfully",

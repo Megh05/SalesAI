@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState, useEffect, useCallback } from "react";
+import { queryClient } from "@/lib/queryClient";
 import type { User } from "@shared/schema";
 
 interface Organization {
@@ -36,6 +37,19 @@ export function useAuth() {
         localStorage.removeItem('activeOrgId');
       }
     }
+    queryClient.removeQueries({
+      predicate: (query) => {
+        const key = query.queryKey[0];
+        return typeof key === 'string' && (
+          key.includes('/api/roles') ||
+          key.includes('/api/invitations') ||
+          key.includes('/api/teams') ||
+          key.includes('/api/team-members') ||
+          key.includes('/api/leads') ||
+          key.includes('/api/activities')
+        );
+      },
+    });
   }, []);
 
   const activeOrganization = organizations?.find(org => org.id === activeOrgId);
