@@ -598,7 +598,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const nameParts = leadData.contact.name.trim().split(/\s+/);
         const firstName = nameParts[0] || 'Unknown';
         const lastName = nameParts.slice(1).join(' ') || 'Contact';
-        
+
         const newContact = await storage.createContact({
           firstName,
           lastName,
@@ -623,7 +623,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         // Generate a title from the email subject or contact name
         const title = email.subject || `Lead from ${leadData.contact.name}`;
-        
+
         lead = await storage.createLead({
           title,
           contactId: contactId,
@@ -1102,7 +1102,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const syncedMessages = [];
       for (const message of messages) {
         const parsed = linkedinService.parseLinkedInMessage(message, userId);
-        
+
         const existing = await storage.getEmailThreads(userId);
         const isDuplicate = existing.some(e => 
           e.messageId === parsed.messageId && e.channel === 'linkedin'
@@ -1375,7 +1375,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       contacts.forEach(contact => {
         const contactActivities = activities.filter(a => a.contactId === contact.id);
         const contactEmails = emails.filter(e => e.contactId === contact.id);
-        
+
         const allInteractions = [
           ...contactActivities.map(a => a.createdAt),
           ...contactEmails.map(e => e.receivedAt)
@@ -1399,7 +1399,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (contactLead.status === 'negotiation') score += 20;
           else if (contactLead.status === 'demo' || contactLead.status === 'qualified') score += 15;
           else if (contactLead.status === 'prospect') score += 5;
-          
+
           if (contactLead.value && contactLead.value > 50000) score += 10;
           else if (contactLead.value && contactLead.value > 10000) score += 5;
         }
@@ -1418,7 +1418,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         if (lead.status === 'negotiation') leadScore += 20;
         else if (lead.status === 'demo') leadScore += 15;
-        
+
         if (lead.value && lead.value > 50000) leadScore += 15;
 
         const isHot = leadScore >= 60;
@@ -1667,9 +1667,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Team name is required" });
       }
 
+      // Create new team
       const team = await storage.createTeam({
         name,
         description,
+        organizationId: req.organizationId!, // Added organizationId here
         ownerId: userId,
       });
 
@@ -2002,14 +2004,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // ========== RBAC ROUTES ==========
-  
+  // ========== RBACROUTES ==========
+
   // Helper to verify organization membership
   async function verifyOrganizationMembership(userId: string, organizationId: string): Promise<boolean> {
     const userOrgs = await storage.getOrganizations(userId);
     return userOrgs.some(org => org.id === organizationId);
   }
-  
+
   // Organizations
   app.get("/api/organizations", isAuthenticated, async (req: AuthRequest, res: Response) => {
     try {
@@ -2026,11 +2028,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user!.id;
       const orgId = req.params.id;
-      
+
       if (!await verifyOrganizationMembership(userId, orgId)) {
         return res.status(403).json({ message: "Access denied to this organization" });
       }
-      
+
       const org = await storage.getOrganization(orgId);
       if (!org) {
         return res.status(404).json({ message: "Organization not found" });
@@ -2062,16 +2064,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user!.id;
       const orgId = req.params.id;
-      
+
       const org = await storage.getOrganization(orgId);
       if (!org) {
         return res.status(404).json({ message: "Organization not found" });
       }
-      
+
       if (org.ownerId !== userId) {
         return res.status(403).json({ message: "Only organization owner can update settings" });
       }
-      
+
       const updated = await storage.updateOrganization(orgId, req.body);
       res.json(updated);
     } catch (error: any) {
@@ -2084,11 +2086,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user!.id;
       const orgId = req.params.id;
-      
+
       if (!await verifyOrganizationMembership(userId, orgId)) {
         return res.status(403).json({ message: "Access denied to this organization" });
       }
-      
+
       const members = await storage.getOrganizationMembers(orgId);
       res.json(members);
     } catch (error: any) {
@@ -2187,11 +2189,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!orgId) {
         return res.status(400).json({ message: "Organization ID required" });
       }
-      
+
       if (!await verifyOrganizationMembership(userId, orgId)) {
         return res.status(403).json({ message: "Access denied to this organization" });
       }
-      
+
       const invitations = await storage.getInvitations(orgId);
       res.json(invitations);
     } catch (error: any) {
@@ -2204,13 +2206,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user!.id;
       const { organizationId } = req.body;
-      
+
       if (!await verifyOrganizationMembership(userId, organizationId)) {
         return res.status(403).json({ message: "Access denied to this organization" });
       }
-      
+
       const { invitationService } = await import("./invitation.service");
-      
+
       const invitation = await invitationService.createInvitation(
         req.body.email,
         organizationId,
@@ -2218,9 +2220,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId,
         req.body.teamId
       );
-      
+
       await invitationService.sendInvitationEmail(invitation.id);
-      
+
       res.status(201).json(invitation);
     } catch (error: any) {
       console.error("Error creating invitation:", error);
@@ -2232,15 +2234,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user!.id;
       const invitation = await storage.getInvitation(req.params.id);
-      
+
       if (!invitation) {
         return res.status(404).json({ message: "Invitation not found" });
       }
-      
+
       if (!await verifyOrganizationMembership(userId, invitation.organizationId)) {
         return res.status(403).json({ message: "Access denied to this organization" });
       }
-      
+
       const { invitationService } = await import("./invitation.service");
       const updated = await invitationService.resendInvitation(req.params.id);
       res.json(updated);
@@ -2268,18 +2270,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user!.id;
       const { leadId } = req.params;
       const organizationId = req.query.organizationId as string;
-      
+
       if (!organizationId) {
         return res.status(400).json({ message: "Organization ID required" });
       }
-      
+
       if (!await verifyOrganizationMembership(userId, organizationId)) {
         return res.status(403).json({ message: "Access denied to this organization" });
       }
-      
+
       const { assignmentService } = await import("./assignment.service");
       const recommendation = await assignmentService.getAIRecommendation(leadId, organizationId);
-      
+
       res.json(recommendation);
     } catch (error: any) {
       console.error("Error getting assignment recommendation:", error);
@@ -2292,11 +2294,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { leadId } = req.params;
       const userId = req.user!.id;
       const { assignedTo, method, aiReasoning, organizationId } = req.body;
-      
+
       if (organizationId && !await verifyOrganizationMembership(userId, organizationId)) {
         return res.status(403).json({ message: "Access denied to this organization" });
       }
-      
+
       const { assignmentService } = await import("./assignment.service");
       const assignment = await assignmentService.assignLead(
         leadId,
@@ -2305,7 +2307,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         method,
         aiReasoning
       );
-      
+
       res.status(201).json(assignment);
     } catch (error: any) {
       console.error("Error assigning lead:", error);
