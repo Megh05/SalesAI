@@ -2,13 +2,7 @@ import { graphStorage } from "./graph.storage";
 import type { InsertGraphNode, InsertGraphEdge } from "@shared/schema";
 
 interface LinkedInCSVRow {
-  "First Name"?: string;
-  "Last Name"?: string;
-  "Email Address"?: string;
-  Company?: string;
-  Position?: string;
-  "Connected On"?: string;
-  URL?: string;
+  [key: string]: string | undefined;
 }
 
 export interface CSVImportResult {
@@ -33,29 +27,41 @@ export class LinkedInCSVService {
 
     try {
       const rows = this.parseCSV(csvText);
-      result.totalRows = rows.length;
+
+      // Skip the first row if it contains the Notes header
+      const dataRows = rows[0] && rows[0]["First Name"]?.includes("Notes") ? rows.slice(1) : rows;
+      result.totalRows = dataRows.length;
 
       const companyNodes = new Map<string, string>();
 
-      for (const row of rows) {
+      for (const row of dataRows) {
         try {
-          const personName = `${row["First Name"] || ""} ${row["Last Name"] || ""}`.trim();
-          if (!personName) {
-            result.errors.push("Skipped row with missing name");
-            continue;
+          // Get first and last name with flexible column name matching
+          const firstName = row["First Name"] || "";
+          const lastName = row["Last Name"] || "";
+          const personName = `${firstName} ${lastName}`.trim();
+
+          if (!personName || personName === "") {
+            continue; // Skip empty rows
           }
 
+          const company = row["Company"] || "";
+          const position = row["Position"] || "";
+          const email = row["Email Address"] || "";
+          const linkedinUrl = row["URL"] || "";
+          const connectedOn = row["Connected On"] || "";
+
           const personMetadata = {
-            email: row["Email Address"],
-            position: row.Position,
-            company: row.Company,
-            connectedOn: row["Connected On"],
+            email: email,
+            position: position,
+            company: company,
+            connectedOn: connectedOn,
           };
 
           const personNode: InsertGraphNode = {
             type: "person",
             name: personName,
-            linkedinUrl: row.URL,
+            linkedinUrl: linkedinUrl,
             metadata: JSON.stringify(personMetadata),
             userId,
             organizationId,
@@ -64,8 +70,8 @@ export class LinkedInCSVService {
           const createdPerson = await graphStorage.upsertNode(personNode);
           result.processedPeople++;
 
-          if (row.Company) {
-            let companyNodeId = companyNodes.get(row.Company);
+          if (company && company.trim() !== "") {
+            let companyNodeId = companyNodes.get(company);
 
             if (!companyNodeId) {
               const companyMetadata = {
@@ -74,7 +80,7 @@ export class LinkedInCSVService {
 
               const companyNode: InsertGraphNode = {
                 type: "company",
-                name: row.Company,
+                name: company,
                 metadata: JSON.stringify(companyMetadata),
                 userId,
                 organizationId,
@@ -82,7 +88,7 @@ export class LinkedInCSVService {
 
               const createdCompany = await graphStorage.upsertNode(companyNode);
               companyNodeId = createdCompany.id;
-              companyNodes.set(row.Company, companyNodeId);
+              companyNodes.set(company, companyNodeId);
               result.processedCompanies++;
             }
 
@@ -92,7 +98,7 @@ export class LinkedInCSVService {
               relationType: "works_at",
               weight: 50,
               source: "csv",
-              metadata: JSON.stringify({ position: row.Position }),
+              metadata: JSON.stringify({ position: position }),
               userId,
               organizationId,
             };
