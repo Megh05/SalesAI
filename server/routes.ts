@@ -2371,7 +2371,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const userOrgs = await storage.getUserOrganizations(userId);
       const hasAccess = userOrgs.some(org => org.id === organizationId);
-      
+
       if (!hasAccess) {
         return res.status(403).json({ 
           message: "Access denied to specified organization" 
@@ -2404,7 +2404,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const userOrgs = await storage.getUserOrganizations(userId);
       const hasAccess = userOrgs.some(org => org.id === organizationId);
-      
+
       if (!hasAccess) {
         return res.status(403).json({ 
           message: "Access denied to specified organization" 
@@ -2436,7 +2436,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const userOrgs = await storage.getUserOrganizations(userId);
       const hasAccess = userOrgs.some(org => org.id === organizationId);
-      
+
       if (!hasAccess) {
         return res.status(403).json({ 
           message: "Access denied to specified organization" 
@@ -2466,7 +2466,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const userOrgs = await storage.getUserOrganizations(userId);
       const hasAccess = userOrgs.some(org => org.id === organizationId);
-      
+
       if (!hasAccess) {
         return res.status(403).json({ 
           message: "Access denied to specified organization" 
