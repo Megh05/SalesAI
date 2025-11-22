@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Plus, Search, Building2, Pencil, Trash2 } from "lucide-react";
+import { Plus, Search, Building2, Pencil, Trash2, Network } from "lucide-react";
+import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -173,7 +174,17 @@ export default function Companies() {
                       </div>
                     )}
 
-                    <div className="flex gap-2 pt-2">
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      <Link href={`/linkedin-map/${company.id}`}>
+                        <Button
+                          size="sm"
+                          variant="default"
+                          data-testid={`button-view-map-${company.id}`}
+                        >
+                          <Network className="h-3 w-3 mr-1" />
+                          LinkedIn Map
+                        </Button>
+                      </Link>
                       <Button
                         size="sm"
                         variant="outline"

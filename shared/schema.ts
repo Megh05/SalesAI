@@ -440,3 +440,61 @@ export const insertUserWorkflowSchema = createInsertSchema(userWorkflows).omit({
 
 export type UserWorkflow = typeof userWorkflows.$inferSelect;
 export type InsertUserWorkflow = z.infer<typeof insertUserWorkflowSchema>;
+
+// Graph Nodes (for LinkedIn 3D Connections Map)
+export const graphNodes = sqliteTable("graph_nodes", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  type: text("type").notNull(), // 'person' | 'company'
+  name: text("name").notNull(),
+  linkedinUrl: text("linkedin_url"),
+  metadata: text("metadata"), // JSON: {email, title, position, company, industry, size, location, etc.}
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+}, (table) => ({
+  linkedinUrlIdx: index("idx_graph_nodes_linkedin_url").on(table.linkedinUrl),
+  userIdIdx: index("idx_graph_nodes_user_id").on(table.userId),
+}));
+
+export const insertGraphNodeSchema = createInsertSchema(graphNodes).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).required({
+  organizationId: true,
+});
+
+export type GraphNode = typeof graphNodes.$inferSelect;
+export type InsertGraphNode = z.infer<typeof insertGraphNodeSchema>;
+
+// Graph Edges (relationships between nodes)
+export const graphEdges = sqliteTable("graph_edges", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  sourceNodeId: text("source_node_id").notNull().references(() => graphNodes.id, { onDelete: "cascade" }),
+  targetNodeId: text("target_node_id").notNull().references(() => graphNodes.id, { onDelete: "cascade" }),
+  relationType: text("relation_type").notNull(), // 'connection', 'works_at', 'employee_of', etc.
+  weight: integer("weight").default(1), // Connection strength 0-100
+  source: text("source").notNull(), // 'extension' | 'csv' | 'manual'
+  metadata: text("metadata"), // JSON: {connectedOn, mutualConnections, notes, etc.}
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+}, (table) => ({
+  sourceNodeIdx: index("idx_graph_edges_source").on(table.sourceNodeId),
+  targetNodeIdx: index("idx_graph_edges_target").on(table.targetNodeId),
+  userIdIdx: index("idx_graph_edges_user_id").on(table.userId),
+  organizationIdIdx: index("idx_graph_edges_organization_id").on(table.organizationId),
+}));
+
+export const insertGraphEdgeSchema = createInsertSchema(graphEdges).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).required({
+  organizationId: true,
+});
+
+export type GraphEdge = typeof graphEdges.$inferSelect;
+export type InsertGraphEdge = z.infer<typeof insertGraphEdgeSchema>;

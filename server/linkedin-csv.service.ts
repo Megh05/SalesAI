@@ -1,0 +1,171 @@
+import { graphStorage } from "./graph.storage";
+import type { InsertGraphNode, InsertGraphEdge } from "@shared/schema";
+
+interface LinkedInCSVRow {
+  "First Name"?: string;
+  "Last Name"?: string;
+  "Email Address"?: string;
+  Company?: string;
+  Position?: string;
+  "Connected On"?: string;
+  URL?: string;
+}
+
+export interface CSVImportResult {
+  success: boolean;
+  totalRows: number;
+  processedPeople: number;
+  processedCompanies: number;
+  processedConnections: number;
+  errors: string[];
+}
+
+export class LinkedInCSVService {
+  async importCSV(csvText: string, userId: string, organizationId?: string): Promise<CSVImportResult> {
+    const result: CSVImportResult = {
+      success: true,
+      totalRows: 0,
+      processedPeople: 0,
+      processedCompanies: 0,
+      processedConnections: 0,
+      errors: [],
+    };
+
+    try {
+      const rows = this.parseCSV(csvText);
+      result.totalRows = rows.length;
+
+      const companyNodes = new Map<string, string>();
+
+      for (const row of rows) {
+        try {
+          const personName = `${row["First Name"] || ""} ${row["Last Name"] || ""}`.trim();
+          if (!personName) {
+            result.errors.push("Skipped row with missing name");
+            continue;
+          }
+
+          const personMetadata = {
+            email: row["Email Address"],
+            position: row.Position,
+            company: row.Company,
+            connectedOn: row["Connected On"],
+          };
+
+          const personNode: InsertGraphNode = {
+            type: "person",
+            name: personName,
+            linkedinUrl: row.URL,
+            metadata: JSON.stringify(personMetadata),
+            userId,
+            organizationId,
+          };
+
+          const createdPerson = await graphStorage.upsertNode(personNode);
+          result.processedPeople++;
+
+          if (row.Company) {
+            let companyNodeId = companyNodes.get(row.Company);
+
+            if (!companyNodeId) {
+              const companyMetadata = {
+                source: "csv",
+              };
+
+              const companyNode: InsertGraphNode = {
+                type: "company",
+                name: row.Company,
+                metadata: JSON.stringify(companyMetadata),
+                userId,
+                organizationId,
+              };
+
+              const createdCompany = await graphStorage.upsertNode(companyNode);
+              companyNodeId = createdCompany.id;
+              companyNodes.set(row.Company, companyNodeId);
+              result.processedCompanies++;
+            }
+
+            const worksAtEdge: InsertGraphEdge = {
+              sourceNodeId: createdPerson.id,
+              targetNodeId: companyNodeId,
+              relationType: "works_at",
+              weight: 50,
+              source: "csv",
+              metadata: JSON.stringify({ position: row.Position }),
+              userId,
+              organizationId,
+            };
+
+            await graphStorage.upsertEdge(worksAtEdge);
+            result.processedConnections++;
+          }
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          result.errors.push(`Row error: ${errorMsg}`);
+        }
+      }
+    } catch (error) {
+      result.success = false;
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      result.errors.push(`CSV parsing error: ${errorMsg}`);
+    }
+
+    return result;
+  }
+
+  private parseCSV(csvText: string): LinkedInCSVRow[] {
+    const lines = csvText.trim().split('\n');
+    if (lines.length < 2) {
+      throw new Error("CSV file must contain headers and at least one row");
+    }
+
+    const headers = this.parseCSVLine(lines[0]);
+    const rows: LinkedInCSVRow[] = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const values = this.parseCSVLine(lines[i]);
+      const row: LinkedInCSVRow = {};
+
+      headers.forEach((header, index) => {
+        if (values[index]) {
+          (row as any)[header] = values[index];
+        }
+      });
+
+      rows.push(row);
+    }
+
+    return rows;
+  }
+
+  private parseCSVLine(line: string): string[] {
+    const result: string[] = [];
+    let current = "";
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      const nextChar = line[i + 1];
+
+      if (char === '"') {
+        if (inQuotes && nextChar === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = "";
+      } else {
+        current += char;
+      }
+    }
+
+    result.push(current.trim());
+    return result;
+  }
+}
+
+export const linkedInCSVService = new LinkedInCSVService();

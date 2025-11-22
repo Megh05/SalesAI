@@ -28,6 +28,8 @@ import OrganizationSettings from "@/pages/organization-settings";
 import RBACDashboard from "@/pages/rbac";
 import InvitationsHub from "@/pages/invitations";
 import MemberProfile from "@/pages/member-profile";
+import LinkedInImport from "@/pages/linkedin-import";
+import LinkedInMap from "@/pages/linkedin-map";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
 import { Loader2 } from "lucide-react";
@@ -50,6 +52,8 @@ function AuthenticatedRouter() {
       <Route path="/members/:id" component={MemberProfile} />
       <Route path="/organization" component={OrganizationSettings} />
       <Route path="/settings" component={Settings} />
+      <Route path="/linkedin-import" component={LinkedInImport} />
+      <Route path="/linkedin-map/:companyId" component={LinkedInMap} />
       <Route path="/login">{() => <Redirect to="/" />}</Route>
       <Route path="/register">{() => <Redirect to="/" />}</Route>
       <Route component={NotFound} />

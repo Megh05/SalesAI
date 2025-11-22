@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SalesPilot LinkedIn Connector</title>
+  <style>
+    body {
+      width: 350px;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+    }
+    h1 {
+      font-size: 18px;
+      margin: 0 0 16px 0;
+      color: #333;
+    }
+    .section {
+      margin-bottom: 16px;
+    }
+    label {
+      display: block;
+      font-size: 14px;
+      margin-bottom: 4px;
+      color: #666;
+    }
+    input {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-sizing: border-box;
+      font-size: 14px;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      background: #0066cc;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-top: 8px;
+    }
+    button:hover {
+      background: #0052a3;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .status {
+      padding: 8px;
+      border-radius: 4px;
+      font-size: 13px;
+      margin-top: 12px;
+    }
+    .status.success {
+      background: #d4edda;
+      color: #155724;
+    }
+    .status.error {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    .status.info {
+      background: #d1ecf1;
+      color: #0c5460;
+    }
+    .consent-box {
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      padding: 12px;
+      border-radius: 4px;
+      margin-bottom: 16px;
+    }
+    .consent-box p {
+      margin: 0 0 8px 0;
+      font-size: 13px;
+      color: #856404;
+    }
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>SalesPilot LinkedIn Connector</h1>
+  
+  <div id="consentSection" class="consent-box">
+    <p><strong>Data Collection Consent</strong></p>
+    <p>I authorize this extension to gather data from LinkedIn pages I view. Data collected is only from visible page elements that I can see.</p>
+    <button id="giveConsent">I Consent</button>
+  </div>
+
+  <div id="configSection" class="hidden section">
+    <div class="section">
+      <label for="apiUrl">SalesPilot API URL:</label>
+      <input type="text" id="apiUrl" placeholder="https://your-salespilot.com" />
+    </div>
+
+    <div class="section">
+      <label for="authToken">Session Cookie:</label>
+      <input type="password" id="authToken" placeholder="Your session token" />
+    </div>
+
+    <button id="saveConfig">Save Configuration</button>
+  </div>
+
+  <div id="scrapeSection" class="hidden section">
+    <button id="scrapeCompany">Scrape Company Page</button>
+    <button id="scrapeConnections">Scrape Connections</button>
+    <button id="scrapePeople">Scrape People List</button>
+    <button id="sendToServer" disabled>Send Data to SalesPilot</button>
+  </div>
+
+  <div id="status" class="hidden"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

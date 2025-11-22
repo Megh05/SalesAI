@@ -15,6 +15,7 @@ import {
   ChevronDown,
   Shield,
   Mail,
+  Share2,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -80,6 +81,11 @@ const mainNavItems = [
     title: "Relation Map",
     url: "/relation-map",
     icon: Network,
+  },
+  {
+    title: "LinkedIn Import",
+    url: "/linkedin-import",
+    icon: Share2,
   },
 ];
 

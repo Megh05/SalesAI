@@ -19,6 +19,7 @@ import {
   loginSchema,
   insertUserSettingsSchema,
 } from "@shared/schema";
+import { z } from "zod";
 
 type AuthRequest = Request & { user?: any };
 
@@ -2323,6 +2324,193 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error fetching lead assignments:", error);
       res.status(500).json({ message: error.message || "Failed to fetch assignments" });
+    }
+  });
+
+  // LinkedIn Graph API Routes
+  const linkedInCSVImportSchema = z.object({
+    csvText: z.string().min(1, "CSV text is required"),
+    organizationId: z.string().min(1, "Organization ID is required"),
+  });
+
+  const linkedInExtensionImportSchema = z.object({
+    people: z.array(z.object({
+      name: z.string(),
+      title: z.string().optional(),
+      company: z.string().optional(),
+      linkedinUrl: z.string().optional(),
+      profileImageUrl: z.string().optional(),
+    })).optional(),
+    companies: z.array(z.object({
+      name: z.string(),
+      linkedinUrl: z.string().optional(),
+      industry: z.string().optional(),
+      size: z.string().optional(),
+      location: z.string().optional(),
+      website: z.string().optional(),
+    })).optional(),
+    timestamp: z.string(),
+    organizationId: z.string().min(1, "Organization ID is required"),
+  }).refine(data => (data.people && data.people.length > 0) || (data.companies && data.companies.length > 0), {
+    message: "At least one person or company must be provided",
+  });
+
+  app.post("/api/import/linkedin-csv", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const parsed = linkedInCSVImportSchema.safeParse(req.body);
+
+      if (!parsed.success) {
+        return res.status(400).json({ 
+          message: "Invalid request body",
+          errors: parsed.error.errors 
+        });
+      }
+
+      const { csvText, organizationId } = parsed.data;
+
+      const userOrgs = await storage.getUserOrganizations(userId);
+      const hasAccess = userOrgs.some(org => org.id === organizationId);
+      
+      if (!hasAccess) {
+        return res.status(403).json({ 
+          message: "Access denied to specified organization" 
+        });
+      }
+
+      const { linkedInCSVService } = await import("./linkedin-csv.service");
+      const result = await linkedInCSVService.importCSV(csvText, userId, organizationId);
+
+      res.status(200).json(result);
+    } catch (error: any) {
+      console.error("Error importing LinkedIn CSV:", error);
+      res.status(500).json({ message: error.message || "Failed to import CSV" });
+    }
+  });
+
+  app.post("/api/import/linkedin-extension", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const parsed = linkedInExtensionImportSchema.safeParse(req.body);
+
+      if (!parsed.success) {
+        return res.status(400).json({ 
+          message: "Invalid request body",
+          errors: parsed.error.errors 
+        });
+      }
+
+      const { organizationId, ...extensionData } = parsed.data;
+
+      const userOrgs = await storage.getUserOrganizations(userId);
+      const hasAccess = userOrgs.some(org => org.id === organizationId);
+      
+      if (!hasAccess) {
+        return res.status(403).json({ 
+          message: "Access denied to specified organization" 
+        });
+      }
+
+      const { linkedInExtensionService } = await import("./linkedin-extension.service");
+      const result = await linkedInExtensionService.importExtensionData(extensionData, userId, organizationId);
+
+      res.status(200).json(result);
+    } catch (error: any) {
+      console.error("Error importing LinkedIn extension data:", error);
+      res.status(500).json({ message: error.message || "Failed to import extension data" });
+    }
+  });
+
+  app.get("/api/graph/company/:companyId", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const { companyId } = req.params;
+      const depth = parseInt(req.query.depth as string) || 2;
+      const organizationId = req.query.organizationId as string;
+
+      if (!organizationId) {
+        return res.status(400).json({ 
+          message: "Organization ID is required" 
+        });
+      }
+
+      const userOrgs = await storage.getUserOrganizations(userId);
+      const hasAccess = userOrgs.some(org => org.id === organizationId);
+      
+      if (!hasAccess) {
+        return res.status(403).json({ 
+          message: "Access denied to specified organization" 
+        });
+      }
+
+      const { graphStorage } = await import("./graph.storage");
+      const graphData = await graphStorage.getCompanyGraph(companyId, userId, organizationId, depth);
+
+      res.json(graphData);
+    } catch (error: any) {
+      console.error("Error fetching company graph:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch graph" });
+    }
+  });
+
+  app.get("/api/graph/stats", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const organizationId = req.query.organizationId as string;
+
+      if (!organizationId) {
+        return res.status(400).json({ 
+          message: "Organization ID is required" 
+        });
+      }
+
+      const userOrgs = await storage.getUserOrganizations(userId);
+      const hasAccess = userOrgs.some(org => org.id === organizationId);
+      
+      if (!hasAccess) {
+        return res.status(403).json({ 
+          message: "Access denied to specified organization" 
+        });
+      }
+
+      const { graphStorage } = await import("./graph.storage");
+      const stats = await graphStorage.getGraphStats(userId, organizationId);
+
+      res.json(stats);
+    } catch (error: any) {
+      console.error("Error fetching graph stats:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch stats" });
+    }
+  });
+
+  app.get("/api/graph/nodes", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const type = req.query.type as string;
+
+      const { graphStorage } = await import("./graph.storage");
+      const nodes = type 
+        ? await graphStorage.getNodesByType(type, userId)
+        : [];
+
+      res.json(nodes);
+    } catch (error: any) {
+      console.error("Error fetching graph nodes:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch nodes" });
+    }
+  });
+
+  app.delete("/api/graph/data", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+
+      const { graphStorage } = await import("./graph.storage");
+      await graphStorage.deleteUserGraphData(userId);
+
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("Error deleting graph data:", error);
+      res.status(500).json({ message: error.message || "Failed to delete graph data" });
     }
   });
 
