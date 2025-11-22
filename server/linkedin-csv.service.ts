@@ -121,16 +121,30 @@ export class LinkedInCSVService {
   }
 
   private parseCSV(csvText: string): LinkedInCSVRow[] {
-    const lines = csvText.trim().split('\n');
+    const lines = csvText.trim().split('\n').filter(line => line.trim());
     if (lines.length < 2) {
       throw new Error("CSV file must contain headers and at least one row");
     }
 
-    const headers = this.parseCSVLine(lines[0]);
+    // Skip preamble lines (notes, warnings, etc.) - find the line with actual headers
+    let headerLineIndex = 0;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      // Check if this line contains the standard LinkedIn header columns
+      if (line.includes("First Name") && line.includes("Last Name")) {
+        headerLineIndex = i;
+        break;
+      }
+    }
+
+    const headers = this.parseCSVLine(lines[headerLineIndex]);
     const rows: LinkedInCSVRow[] = [];
 
-    for (let i = 1; i < lines.length; i++) {
-      const values = this.parseCSVLine(lines[i]);
+    for (let i = headerLineIndex + 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue; // Skip empty lines
+      
+      const values = this.parseCSVLine(line);
       const row: LinkedInCSVRow = {};
 
       headers.forEach((header, index) => {
