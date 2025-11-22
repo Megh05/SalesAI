@@ -2369,7 +2369,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { csvText, organizationId } = parsed.data;
 
-      const userOrgs = await storage.getUserOrganizations(userId);
+      const userOrgs = await storage.getOrganizations(userId);
       const hasAccess = userOrgs.some(org => org.id === organizationId);
 
       if (!hasAccess) {
@@ -2402,7 +2402,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { organizationId, ...extensionData } = parsed.data;
 
-      const userOrgs = await storage.getUserOrganizations(userId);
+      const userOrgs = await storage.getOrganizations(userId);
       const hasAccess = userOrgs.some(org => org.id === organizationId);
 
       if (!hasAccess) {
@@ -2434,7 +2434,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const userOrgs = await storage.getUserOrganizations(userId);
+      const userOrgs = await storage.getOrganizations(userId);
       const hasAccess = userOrgs.some(org => org.id === organizationId);
 
       if (!hasAccess) {
@@ -2464,7 +2464,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const userOrgs = await storage.getUserOrganizations(userId);
+      const userOrgs = await storage.getOrganizations(userId);
       const hasAccess = userOrgs.some(org => org.id === organizationId);
 
       if (!hasAccess) {
