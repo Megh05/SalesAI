@@ -87,6 +87,11 @@ const mainNavItems = [
     url: "/linkedin-import",
     icon: Share2,
   },
+  {
+    title: "LinkedIn Companies",
+    url: "/linkedin-companies",
+    icon: Building2,
+  },
 ];
 
 const secondaryNavItems = [

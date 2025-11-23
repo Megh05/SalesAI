@@ -29,6 +29,7 @@ import RBACDashboard from "@/pages/rbac";
 import InvitationsHub from "@/pages/invitations";
 import MemberProfile from "@/pages/member-profile";
 import LinkedInImport from "@/pages/linkedin-import";
+import LinkedInCompanies from "@/pages/linkedin-companies";
 import LinkedInMap from "@/pages/linkedin-map";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
@@ -53,6 +54,7 @@ function AuthenticatedRouter() {
       <Route path="/organization" component={OrganizationSettings} />
       <Route path="/settings" component={Settings} />
       <Route path="/linkedin-import" component={LinkedInImport} />
+      <Route path="/linkedin-companies" component={LinkedInCompanies} />
       <Route path="/linkedin-map/:companyId" component={LinkedInMap} />
       <Route path="/login">{() => <Redirect to="/" />}</Route>
       <Route path="/register">{() => <Redirect to="/" />}</Route>

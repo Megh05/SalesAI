@@ -4,15 +4,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { Download, Chrome, Upload } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function LinkedInImport() {
+  const { activeOrgId } = useAuth();
+
   const { data: stats } = useQuery<{
     totalNodes: number;
     totalEdges: number;
     companies: number;
     people: number;
   }>({
-    queryKey: ["/api/graph/stats"],
+    queryKey: ["/api/graph/stats", { organizationId: activeOrgId }],
+    enabled: !!activeOrgId,
   });
 
   return (

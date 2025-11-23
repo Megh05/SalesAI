@@ -2487,10 +2487,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user!.id;
       const type = req.query.type as string;
+      const organizationId = req.query.organizationId as string;
+
+      if (!organizationId) {
+        return res.status(400).json({ 
+          message: "Organization ID is required" 
+        });
+      }
+
+      const userOrgs = await storage.getOrganizations(userId);
+      const hasAccess = userOrgs.some(org => org.id === organizationId);
+
+      if (!hasAccess) {
+        return res.status(403).json({ 
+          message: "Access denied to specified organization" 
+        });
+      }
 
       const { graphStorage } = await import("./graph.storage");
       const nodes = type 
-        ? await graphStorage.getNodesByType(type, userId)
+        ? await graphStorage.getNodesByType(type, userId, organizationId)
         : [];
 
       res.json(nodes);
