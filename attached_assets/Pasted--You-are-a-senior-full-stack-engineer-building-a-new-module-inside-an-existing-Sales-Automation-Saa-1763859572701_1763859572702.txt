@@ -1,0 +1,127 @@
+**You are a senior full-stack engineer building a new module inside an existing Sales Automation SaaS platform. Your task is to fully develop the “LinkedIn 3D Connections Map” feature using only legal, user-consented methods.
+The two approved data sources are:
+User-consented Chrome extension (DOM scraping of visible LinkedIn pages)
+LinkedIn Connections CSV upload (official user export)**
+🔥 Deliverables
+You must implement end-to-end:
+1. Chrome Extension (Manifest V3) – Legal & user-consented
+Create a Chrome extension folder with:
+manifest.json (MV3)
+contentScript.js
+background.js
+popup.html + popup.js
+Extension must:
+Activate only on linkedin.com.
+Read only visible DOM elements that the user can see.
+Scrape:
+Company page → People tab → employee list.
+Individual connection cards (Name, Title, Company, Profile URL).
+Scroll the DOM slowly to reveal elements.
+Package the scraped data as JSON and POST to /api/import/linkedin-extension with the user’s auth token.
+Include:
+Consent modal (“I authorize gathering data from pages I view”)
+Auto-throttle (random delay between DOM queries)
+Retry queue for offline conditions
+2. LinkedIn CSV Upload Handler
+Backend:
+Create API endpoint: POST /api/import/linkedin-csv
+Parse LinkedIn Connections CSV (Name, Email, Company, Position, Connected On).
+Normalize data → convert to nodes + edges.
+Store metadata in JSON columns (SQLite-safe).
+Frontend:
+Build drag-and-drop CSV uploader component.
+Show preview table before import.
+Display import summary (#people, #companies, #connections).
+3. Graph Database Layer (SQLite)
+Implement:
+Tables:
+nodes
+id (UUID)
+type (“person” | “company”)
+name
+linkedin_url
+metadata JSON
+created_at / updated_at
+edges
+id
+source_node_id
+target_node_id
+relation_type (“connection”, “works_at”, “employee_of”, etc.)
+weight (0–1)
+source (“extension” | “csv”)
+metadata JSON
+Features:
+Identity resolution (dedupe):
+Match on LinkedIn URL first.
+Fallback: name + company fuzzy match.
+Upsert logic for both nodes and edges.
+4. API Endpoints
+Implement:
+POST /api/import/linkedin-extension
+POST /api/import/linkedin-csv
+GET /api/graph/company/:companyId?depth=2
+→ Return hierarchical graph (nodes, edges).
+AI should:
+Build controllers, services, Prisma schema (SQLite), DTOs, validators.
+5. Frontend 3D Map Visualization
+In Next.js, build a page:
+/company/[id]/map
+Use react-force-graph-3d or Cytoscape.js.
+Requirements:
+Node styling:
+Person → circle
+Company → hexagon
+Node hover → show:
+Name
+Role
+Company
+Connection Strength
+Clicking a node → sidebar opens with AI summary (use existing Mistral API):
+Who this person is
+Their relevance
+Suggested outreach strategy
+Graph layout:
+Depth-limit = 2 (company → employees → connected companies/people).
+Color-code node communities using Louvain clustering.
+6. Integration with existing app
+Add button: “View LinkedIn Map” inside each company profile.
+Add import menu:
+“Import from LinkedIn Chrome Extension”
+“Upload LinkedIn CSV”
+Use existing auth module.
+Store AI summaries in existing AI module cache.
+7. AI-powered Similarity & Lead Suggestion
+Use your existing Mistral/OpenRouter setup.
+Tasks:
+For each connected company:
+Compute domain similarity (industry, size, tech).
+Compute likelihood that they would need the same solution as Company X.
+Provide:
+“Potential Targets”
+“Warm Intros”
+“Companies with Shared Employees”
+Create endpoints:
+POST /api/graph/ai/similarity
+POST /api/graph/ai/recommendations
+8. Testing & Validation
+Provide Jest tests for:
+CSV parser
+Node/edge upsert logic
+Graph builder
+Extension POST handler
+Validate:
+No scraping without user consent.
+No storage of LinkedIn page HTML, only parsed visible fields.
+User can delete all imported data.
+⚙️ Constraints
+Backend: Node.js with NestJS, SQLite via Prisma.
+Frontend: Next.js + Tailwind + ShadCN UI
+AI: Mistral/OpenRouter
+Must be fully integrated into existing app structure.
+Follow clean architecture + modular code.
+🎯 Goal
+Deliver a complete, production-ready:
+LinkedIn 3D Connections Map Feature
+with
+Chrome Extension + CSV Upload + Graph Database + AI Insights
+All code must be generated, wired, tested, and ready to run.
