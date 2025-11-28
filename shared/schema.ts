@@ -311,6 +311,9 @@ export const userSettings = sqliteTable("user_settings", {
   n8nWebhookUrl: text("n8n_webhook_url"),
   n8nApiKey: text("n8n_api_key"),
   n8nConnected: integer("n8n_connected", { mode: "boolean" }).default(false),
+  autoCreateLead: integer("auto_create_lead", { mode: "boolean" }).default(true),
+  confidenceThreshold: real("confidence_threshold").default(0.7),
+  pollingInterval: integer("polling_interval").default(15),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });

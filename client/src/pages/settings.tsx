@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { CheckCircle2, XCircle, Loader2, Eye, EyeOff } from "lucide-react";
@@ -840,6 +841,104 @@ export default function Settings() {
           <p className="text-sm text-muted-foreground border-l-2 border-blue-500 pl-3 py-1">
             n8n is a powerful workflow automation tool. Use it to trigger custom workflows when new leads are created, emails are classified, or contacts are updated. Visit the Workflows page to see available event types.
           </p>
+        </CardContent>
+      </Card>
+
+      {/* Smart Inbox Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Smart Sales Inbox Settings</CardTitle>
+          <CardDescription>
+            Configure how the Smart Sales Inbox processes and classifies emails
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="autoCreateLead">Auto-create Leads</Label>
+              <p className="text-sm text-muted-foreground">
+                Automatically create leads from classified sales emails
+              </p>
+            </div>
+            <input
+              type="checkbox"
+              id="autoCreateLead"
+              className="h-5 w-5 rounded border-gray-300 text-primary focus:ring-primary"
+              checked={settings?.autoCreateLead ?? true}
+              onChange={async (e) => {
+                try {
+                  await apiRequest("PUT", "/api/settings", { autoCreateLead: e.target.checked });
+                  queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+                  toast({ title: "Settings updated", description: `Auto-create leads ${e.target.checked ? "enabled" : "disabled"}` });
+                } catch (error: any) {
+                  toast({ title: "Error", description: error.message, variant: "destructive" });
+                }
+              }}
+            />
+          </div>
+
+          <Separator />
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label>Confidence Threshold</Label>
+              <span className="text-sm font-medium">{Math.round((settings?.confidenceThreshold ?? 0.7) * 100)}%</span>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Minimum AI confidence required for auto-actions (classification, lead creation)
+            </p>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="5"
+              value={(settings?.confidenceThreshold ?? 0.7) * 100}
+              className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+              onChange={async (e) => {
+                try {
+                  await apiRequest("PUT", "/api/settings", { confidenceThreshold: parseInt(e.target.value) / 100 });
+                  queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+                } catch (error: any) {
+                  toast({ title: "Error", description: error.message, variant: "destructive" });
+                }
+              }}
+            />
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>0%</span>
+              <span>50%</span>
+              <span>100%</span>
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-3">
+            <Label htmlFor="pollingInterval">Email Sync Interval</Label>
+            <p className="text-sm text-muted-foreground">
+              How often to check for new emails (in minutes)
+            </p>
+            <div className="flex items-center gap-3">
+              <Input
+                id="pollingInterval"
+                type="number"
+                min="5"
+                max="60"
+                className="w-24"
+                value={settings?.pollingInterval ?? 15}
+                onChange={async (e) => {
+                  const value = Math.max(5, Math.min(60, parseInt(e.target.value) || 15));
+                  try {
+                    await apiRequest("PUT", "/api/settings", { pollingInterval: value });
+                    queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+                    toast({ title: "Settings updated", description: `Sync interval set to ${value} minutes` });
+                  } catch (error: any) {
+                    toast({ title: "Error", description: error.message, variant: "destructive" });
+                  }
+                }}
+              />
+              <span className="text-sm text-muted-foreground">minutes (5-60)</span>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

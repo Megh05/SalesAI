@@ -655,7 +655,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Sales Emails API endpoints
-  // Get sales-only emails (including all business-related classifications)
+  // Get sales-only emails (including all business-related classifications) with pagination
   app.get("/api/sales-emails", isAuthenticated, async (req: AuthRequest, res: Response) => {
     try {
       const userId = (req.user as any).id;
@@ -663,9 +663,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Unauthorized" });
       }
 
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = Math.min(parseInt(req.query.limit as string) || 25, 100);
+      const tagsFilter = req.query.tags ? (Array.isArray(req.query.tags) ? req.query.tags : [req.query.tags]) : [];
+      const stageFilter = req.query.stage as string | undefined;
+      const priorityMin = parseFloat(req.query.priority_min as string) || 0;
+
       const allEmails = await storage.getEmailThreads(userId);
 
-      // Business-related classifications to include
       const businessClassifications = [
         "Lead Inquiry",
         "Follow-up",
@@ -675,13 +680,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "Closed Lost"
       ];
 
-      // Filter emails that are either marked as sales OR have business-related classifications
-      const salesEmails = allEmails.filter(email => 
+      let salesEmails = allEmails.filter(email => 
         email.isSales === true || 
         (email.aiClassification && businessClassifications.includes(email.aiClassification))
       );
 
-      res.json(salesEmails);
+      if (tagsFilter.length > 0) {
+        salesEmails = salesEmails.filter(email => {
+          if (!email.tags) return false;
+          try {
+            const emailTags = JSON.parse(email.tags);
+            return tagsFilter.some(tag => emailTags.includes(tag));
+          } catch { return false; }
+        });
+      }
+
+      if (stageFilter && stageFilter !== 'all') {
+        salesEmails = salesEmails.filter(email => email.leadStage === stageFilter);
+      }
+
+      if (priorityMin > 0) {
+        salesEmails = salesEmails.filter(email => (email.priorityScore || 0) >= priorityMin);
+      }
+
+      salesEmails.sort((a, b) => {
+        const priorityDiff = (b.priorityScore || 0) - (a.priorityScore || 0);
+        if (priorityDiff !== 0) return priorityDiff;
+        return new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime();
+      });
+
+      const total = salesEmails.length;
+      const totalPages = Math.ceil(total / limit);
+      const start = (page - 1) * limit;
+      const paginatedEmails = salesEmails.slice(start, start + limit);
+
+      res.json(paginatedEmails);
     } catch (error: any) {
       console.error("Error fetching sales emails:", error);
       res.status(500).json({ message: error.message || "Failed to fetch sales emails" });
@@ -771,6 +804,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error analyzing sales email:", error);
       res.status(500).json({ message: error.message || "Failed to analyze email" });
+    }
+  });
+
+  // Smart Inbox Action endpoint for task creation
+  app.post("/api/smart-inbox/action/:threadId", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { threadId } = req.params;
+      const { action, payload } = req.body;
+
+      if (!action) {
+        return res.status(400).json({ message: "Action is required" });
+      }
+
+      const emails = await storage.getEmailsByThreadId(threadId, userId);
+      if (!emails || emails.length === 0) {
+        return res.status(404).json({ message: "Thread not found" });
+      }
+
+      let result: any = { success: true };
+
+      switch (action) {
+        case "create_task":
+          await storage.createSalesThreadActivity({
+            threadId,
+            emailId: emails[0].id,
+            activityType: "task_created",
+            title: payload?.title || "Follow-up task",
+            description: payload?.description || "Task created from suggested action",
+            metadata: JSON.stringify(payload),
+            userId,
+          });
+          result.message = "Task created successfully";
+          break;
+        case "schedule_followup":
+          await storage.createSalesThreadActivity({
+            threadId,
+            emailId: emails[0].id,
+            activityType: "followup_scheduled",
+            title: `Follow-up scheduled for ${payload?.date || "later"}`,
+            description: payload?.note || "Scheduled follow-up from suggested action",
+            metadata: JSON.stringify(payload),
+            userId,
+          });
+          result.message = "Follow-up scheduled";
+          break;
+        case "update_stage":
+          if (payload?.stage) {
+            await storage.updateEmailThread(emails[0].id, userId, { leadStage: payload.stage });
+            await storage.createSalesThreadActivity({
+              threadId,
+              emailId: emails[0].id,
+              activityType: "stage_updated",
+              title: `Stage updated to ${payload.stage}`,
+              description: `Lead stage changed to ${payload.stage}`,
+              userId,
+            });
+          }
+          result.message = "Stage updated";
+          break;
+        default:
+          return res.status(400).json({ message: "Unknown action type" });
+      }
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error executing smart inbox action:", error);
+      res.status(500).json({ message: error.message || "Failed to execute action" });
+    }
+  });
+
+  // GDPR: Delete thread and all associated data
+  app.delete("/api/emails/thread/:threadId", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { threadId } = req.params;
+
+      const emails = await storage.getEmailsByThreadId(threadId, userId);
+      if (!emails || emails.length === 0) {
+        return res.status(404).json({ message: "Thread not found" });
+      }
+
+      for (const email of emails) {
+        await storage.deleteEmailThread(email.id, userId);
+      }
+
+      await storage.deleteSalesThreadActivities(threadId, userId);
+
+      res.json({ success: true, message: "Thread and all related data deleted" });
+    } catch (error: any) {
+      console.error("Error deleting thread:", error);
+      res.status(500).json({ message: error.message || "Failed to delete thread" });
     }
   });
 

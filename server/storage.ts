@@ -434,6 +434,19 @@ export class DatabaseStorage implements IStorage {
       .orderBy(salesThreadActivities.createdAt);
   }
 
+  async deleteSalesThreadActivities(threadId: string, userId: string): Promise<boolean> {
+    const result = await db.delete(salesThreadActivities)
+      .where(and(eq(salesThreadActivities.threadId, threadId), eq(salesThreadActivities.userId, userId)));
+    return result.changes > 0;
+  }
+
+  // Email thread delete operation
+  async deleteEmailThread(id: string, userId: string): Promise<boolean> {
+    const result = await db.delete(emailThreads)
+      .where(and(eq(emailThreads.id, id), eq(emailThreads.userId, userId)));
+    return result.changes > 0;
+  }
+
   // User settings operations
   async getUserSettings(userId: string): Promise<UserSettings | undefined> {
     const [settings] = await db.select().from(userSettings).where(eq(userSettings.userId, userId));
