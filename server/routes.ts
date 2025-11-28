@@ -654,6 +654,104 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Sales Emails API endpoints
+  app.get("/api/sales-emails", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const emails = await storage.getSalesEmails(userId);
+      res.json(emails);
+    } catch (error: any) {
+      console.error("Error fetching sales emails:", error);
+      res.status(500).json({ message: "Failed to fetch sales emails" });
+    }
+  });
+
+  app.get("/api/sales-emails/tags", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const tags = await storage.getSalesEmailTags(userId);
+      res.json(tags);
+    } catch (error: any) {
+      console.error("Error fetching sales email tags:", error);
+      res.status(500).json({ message: "Failed to fetch tags" });
+    }
+  });
+
+  app.get("/api/sales-emails/thread/:threadId", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { threadId } = req.params;
+      
+      const emails = await storage.getEmailsByThreadId(threadId, userId);
+      const activities = await storage.getSalesThreadActivities(threadId, userId);
+      
+      res.json({
+        emails,
+        activities,
+        threadId,
+      });
+    } catch (error: any) {
+      console.error("Error fetching thread timeline:", error);
+      res.status(500).json({ message: "Failed to fetch thread timeline" });
+    }
+  });
+
+  app.post("/api/emails/:id/analyze-sales", isAuthenticated, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { id } = req.params;
+
+      const email = await storage.getEmailThread(id, userId);
+      if (!email) {
+        return res.status(404).json({ message: "Email not found" });
+      }
+
+      const analysis = await aiService.analyzeSalesEmail(userId, {
+        subject: email.subject,
+        from: email.fromName || email.fromEmail,
+        to: email.toEmail || "",
+        body: email.bodyHtml || email.snippet || "",
+      });
+
+      if (!analysis) {
+        return res.status(500).json({ message: "Failed to analyze email" });
+      }
+
+      // Update email with sales analysis
+      await storage.updateEmailThread(id, userId, {
+        isSales: analysis.isSales,
+        priorityScore: analysis.priorityScore,
+        leadStage: analysis.leadStage,
+        aiSentiment: analysis.sentiment,
+        aiIntent: analysis.intent,
+        tags: JSON.stringify(analysis.tags),
+        aiSummary: analysis.summary,
+        nextAction: analysis.nextAction,
+      });
+
+      // Create activity for timeline
+      if (email.threadId) {
+        await storage.createSalesThreadActivity({
+          threadId: email.threadId,
+          emailId: id,
+          activityType: "ai_analysis",
+          title: "AI Sales Analysis Completed",
+          description: analysis.summary,
+          metadata: JSON.stringify(analysis),
+          userId,
+        });
+      }
+
+      res.json({
+        success: true,
+        analysis,
+      });
+    } catch (error: any) {
+      console.error("Error analyzing sales email:", error);
+      res.status(500).json({ message: error.message || "Failed to analyze email" });
+    }
+  });
+
   app.post("/api/emails/sync", isAuthenticated, async (req: AuthRequest, res: Response) => {
     try {
       const userId = (req.user as any).id;

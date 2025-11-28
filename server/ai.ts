@@ -6,6 +6,17 @@ interface ClassificationResult {
   nextAction: string;
 }
 
+interface SalesAnalysisResult {
+  isSales: boolean;
+  priorityScore: number;
+  leadStage: string | null;
+  sentiment: string;
+  intent: string;
+  tags: string[];
+  summary: string;
+  nextAction: string;
+}
+
 interface SummarizationResult {
   summary: string;
 }
@@ -453,6 +464,87 @@ Consider it a potential lead if the email indicates:
       };
     } catch (error) {
       console.error("Error extracting lead data:", error);
+      return null;
+    }
+  }
+
+  async analyzeSalesEmail(
+    userId: string,
+    emailContent: {
+      subject: string;
+      from: string;
+      to: string;
+      body: string;
+    }
+  ): Promise<SalesAnalysisResult | null> {
+    try {
+      const apiKey = await this.getApiKey(userId);
+      if (!apiKey) {
+        console.warn("No API key configured for user", userId);
+        return null;
+      }
+
+      const prompt = `You are an expert sales AI that analyzes emails to determine if they are sales-related and extract actionable insights.
+
+Analyze this email:
+From: ${emailContent.from}
+To: ${emailContent.to}
+Subject: ${emailContent.subject}
+
+${emailContent.body}
+
+Respond ONLY with valid JSON in this exact format:
+{
+  "isSales": true or false (is this a sales/business email?),
+  "priorityScore": 0.0-1.0 (urgency and importance, 1.0 = highest priority),
+  "leadStage": "prospect" | "contacted" | "qualified" | "demo" | "proposal" | "negotiation" | "closed_won" | "closed_lost" | null,
+  "sentiment": "positive" | "neutral" | "negative" | "urgent",
+  "intent": "inquiry" | "follow_up" | "negotiation" | "objection" | "decision" | "information" | "other",
+  "tags": ["array", "of", "relevant", "tags"],
+  "summary": "2-3 sentence summary of key points",
+  "nextAction": "Specific recommended next action"
+}
+
+Priority scoring guidelines:
+- 0.9-1.0: Urgent decisions, closing deals, hot leads
+- 0.7-0.8: Active negotiations, qualified leads, demo requests
+- 0.5-0.6: Follow-ups, ongoing discussions
+- 0.3-0.4: Initial inquiries, cold outreach
+- 0.0-0.2: Low priority or non-sales`;
+
+      const response = await this.makeOpenRouterRequest(
+        apiKey,
+        [{ role: "user", content: prompt }],
+        500
+      );
+
+      let cleaned = response.trim()
+        .replace(/```json\n?/g, '')
+        .replace(/```\n?/g, '')
+        .replace(/<s>/g, '')
+        .replace(/<\/s>/g, '')
+        .replace(/^\s*<[^>]+>\s*/g, '')
+        .trim();
+
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        cleaned = jsonMatch[0];
+      }
+
+      const result = JSON.parse(cleaned);
+
+      return {
+        isSales: result.isSales ?? false,
+        priorityScore: Math.min(1, Math.max(0, result.priorityScore ?? 0.5)),
+        leadStage: result.leadStage || null,
+        sentiment: result.sentiment || "neutral",
+        intent: result.intent || "other",
+        tags: Array.isArray(result.tags) ? result.tags : [],
+        summary: result.summary || "No summary available",
+        nextAction: result.nextAction || "Review and respond",
+      };
+    } catch (error) {
+      console.error("Error analyzing sales email:", error);
       return null;
     }
   }
