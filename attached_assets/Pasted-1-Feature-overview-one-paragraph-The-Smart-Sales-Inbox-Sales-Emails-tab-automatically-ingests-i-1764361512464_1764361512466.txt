@@ -1,0 +1,412 @@
+1. Feature overview (one-paragraph)
+The Smart Sales Inbox — Sales Emails tab automatically ingests incoming emails (Gmail), classifies them as sales-related, groups them into conversation threads, generates AI summaries and tags, updates/creates leads, and provides a thread-level timeline + activity pipeline that visualizes all actions and suggested next steps. Processing is automatic and near-real-time (polling or webhook-driven), auditable, and reversible.
+2. High-level components & responsibilities
+Email Connector (Gmail integration)
+Polls or receives push notifications for new messages
+Stores raw metadata + message body in DB (minimal amount)
+Ingestion & Normalizer
+Parses raw email HTML → plaintext
+Extracts headers: messageId, threadId, from, to, cc, subject, receivedAt, attachments metadata
+Processing Queue / Worker
+Picks new messages, calls AI service for classification/summarization, persists outputs, updates thread/lead
+AI Engine Wrapper
+Sends prompts to Mistral/OpenRouter for:
+Sales relevance classification
+Intent detection / lead stage detection
+Short message & thread summaries
+Tag extraction
+Priority / urgency score
+Next-action suggestion (one-liner)
+Sentiment
+Threading & Persistence
+email_threads grouping
+email_messages list
+Thread-level summary + timeline
+Lead Manager
+Upserts leads and maps messages → leads
+Updates lead stage, last_activity, score
+Audit / Activity Stream
+Logs actions with user/agent origin and reason (AI confidence)
+Frontend: Smart Inbox UI
+Sales Emails tab (list)
+Thread detail page: AI summary, timeline, activity pipeline, messages
+Filters / search / bulk actions
+Notifications / toast
+Admin / Settings
+Toggle auto-create leads
+Confidence threshold for auto actions
+Retention & deletion policies
+3. Data model (SQLite / Prisma-friendly)
+Use simple types, avoid JSONB. For fields that need structured data, store JSON as TEXT.
+Prisma-style schemas (conceptual)
+model EmailRaw {
+  id           String   @id @default(uuid())
+  messageId    String   @unique
+  threadId     String
+  fromEmail    String
+  toEmails     String   // CSV string or JSON text stored as TEXT
+  subject      String
+  bodyHtml     String   // trimmed, pointer to storage if large
+  bodyText     String
+  receivedAt   DateTime
+  source       String   // "gmail"
+  createdAt    DateTime @default(now())
+}
+
+model EmailThread {
+  id              String   @id @default(uuid())
+  threadId        String   @unique
+  subject         String
+  leadId          String?  // FK to Lead.id
+  lastMessageAt   DateTime
+  summary         String?  // AI-updated short summary
+  priority        Float?   // 0..1
+  tags            String?  // JSON stringified array
+  aiVersion       String?  // model version or prompt version
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model EmailMessage {
+  id            String   @id @default(uuid())
+  emailRawId    String   // FK to EmailRaw.id
+  threadId      String   // FK to EmailThread.threadId
+  fromEmail     String
+  toEmails      String
+  ccEmails      String?
+  bodyText      String
+  sentAt        DateTime
+  aiSummary     String?  // short summary of this message
+  aiIntent      String?  // e.g., "Inquiry","Follow-up"
+  aiSentiment   String?  // "positive"|"neutral"|"negative"
+  aiConfidence  Float?
+  createdAt     DateTime @default(now())
+}
+
+model AISummary {
+  id            String   @id @default(uuid())
+  threadId      String
+  summaryText   String
+  tags          String?  // JSON string
+  nextAction    String?  // e.g., "Send follow-up in 2 days"
+  priority      Float?
+  model         String
+  createdAt     DateTime @default(now())
+}
+
+model Lead {
+  id            String   @id @default(uuid())
+  name          String?
+  email         String?  @unique
+  company       String?
+  stage         String?  // Prospect, In Discussion, Negotiation, Closed Won, Closed Lost
+  score         Float?
+  ownerId       String?  // assigned sales rep
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  lastActivity  DateTime?
+}
+Processing queue
+email_processing_queue
+  id (uuid)
+  emailRawId
+  status (PENDING|PROCESSING|DONE|FAILED)
+  attempts (int)
+  errorText (nullable)
+  nextAttemptAt
+  createdAt
+  updatedAt
+Activity / Audit log
+activity_log
+  id
+  actorType ("system"|"user"|"ai")
+  actorId
+  actionType ("email_ingest","ai_summary","lead_created","lead_updated","thread_updated"...)
+  targetType ("lead"|"thread"|"message")
+  targetId
+  payload TEXT (optional)
+  createdAt
+4. API contract (important endpoints)
+All endpoints use JWT auth & org context. Responses trimmed for brevity.
+Ingestion
+POST /api/smart-inbox/ingest-email
+Body: { messageId, threadId, from, to, subject, bodyHtml, receivedAt }
+Response: 202 Accepted, { emailRawId }
+GET /api/smart-inbox/sales
+Query: ?page=1&limit=25&tags[]=...&stage=...&priority_min=...
+Response: list of threads with { threadId, subject, lastMessageAt, summary, priority, tags, leadId }
+GET /api/smart-inbox/sales/:threadId
+Response:
+{
+  "threadId": "...",
+  "subject": "...",
+  "summary": "...",
+  "priority": 0.85,
+  "tags":["pricing","demo"],
+  "messages":[ {id, from, bodyText, sentAt, aiSummary, aiIntent, aiSentiment} ],
+  "activity":[ {timestamp, actionType, actor, details} ],
+  "lead": { id, name, email, stage, ownerId }
+}
+POST /api/smart-inbox/manual-process/:emailRawId
+Force re-process an email (admin)
+POST /api/smart-inbox/ai/reprocess-thread/:threadId
+Recompute thread summary & suggestions
+POST /api/leads (lead creation / manual edit) — existing
+POST /api/smart-inbox/action/:threadId
+e.g. {"action": "create_task", "payload": {...}} — to create follow-up tasks
+5. Background processing flow (detailed pseudocode)
+Worker loop (every 30s or event-driven via webhook)
+pollNewEmails(): // or received via Gmail push
+  newEmails = fetchNewEmailsFromGmail()
+  for email in newEmails:
+    upsert EmailRaw (messageId uniq)
+    enqueue(emailRawId)
+
+workerProcessLoop():
+  job = dequeue(email_processing_queue, status=PENDING, nextAttempt<=now)
+  if !job: sleep
+  mark job PROCESSING
+  try:
+    emailRaw = load EmailRaw
+    messageText = htmlToPlainText(emailRaw.bodyHtml)
+    aiResp = AI.processEmail({
+       subject: emailRaw.subject,
+       body: messageText,
+       from: emailRaw.fromEmail,
+       to: emailRaw.toEmails,
+       threadMessages: fetchThreadHistory(emailRaw.threadId) // optional for context
+    })
+    // aiResp returns:
+    // { isSales: bool, intent, tags[], summary, priority, sentiment, leadStage, nextAction }
+    if aiResp.isSales:
+      // Threading
+      thread = findOrCreateThreadByThreadId(emailRaw.threadId, subject)
+      create EmailMessage record with ai fields
+      // Update thread summary / tags / priority (merge)
+      updateThreadWithAI(thread, aiResp)
+      // Lead auto-create/update
+      if settings.autoCreateLead:
+         lead = findLeadByEmail(emailRaw.fromEmail) || createLeadFromEmail(emailRaw)
+         updateLeadStage(lead, aiResp.leadStage)
+         thread.leadId = lead.id
+      // Emit event (websocket / webhook)
+      pushEvent("thread.updated", thread)
+    mark job DONE
+  except transient errors:
+    increment attempts, set nextAttempt with backoff
+    mark FAILED if attempts >= threshold
+  except fatal:
+    mark FAILED and log
+Important: maintain idempotency using messageId uniqueness.
+6. AI prompts & expected outputs
+(Use unified wrapper to handle retries, cost controlling & caching.)
+A. Classification prompt (single email)
+SYSTEM: You are a sales assistant. Classify whether this email is related to sales or not.
+USER: Here is an email:
+Subject: {subject}
+Body: {bodyText}
+From: {from}
+To: {to}
+
+Return JSON:
+{
+  "isSales": true|false,
+  "intent": one of ["Inquiry","Follow-up","Negotiation","Demo Request","Pricing Question","Proposal","Close","Other"],
+  "tags": ["pricing","trial","integration"],
+  "priority": 0.0-1.0,
+  "sentiment":"positive|neutral|negative",
+  "leadStage":"Prospect|In Discussion|Negotiation|Closed Won|Closed Lost",
+  "confidence": 0-1
+}
+B. Message summary prompt
+"Summarize the following email in <=30 words. Focus on actionable points and next steps."
+Return: { "summary": "..." }
+C. Thread summary & next action prompt
+Include last N messages in context (limit tokens).
+"Given the thread messages, produce:
+1) a 2-3 sentence summary of the conversation
+2) top 3 next action suggestions (one-liners) with priority and brief reason
+3) a recommended SLA for follow-up (in days)"
+Return JSON:
+{ "summary": "...", "suggestedActions": [{"action":"Send pricing","priority":0.9,"reason":"requested pricing"}, ...], "followUpDays": 2 }
+Cache responses. Add model version and prompt version in AISummary.model field.
+7. Thread timeline & Activity Pipeline semantics
+Timeline
+Chronological list of events across thread/messages and actions:
+Email received (AI: summary)
+Email sent (by rep)
+Lead created (auto/manual)
+Lead stage changed
+Task created / meeting scheduled
+AI suggested follow-up created
+User actions (manual replies, assignments)
+Each event: { id, timestamp, actor (user/ai/system), type, details }
+Activity Pipeline (visual)
+Pipeline stages (vertical swimlanes or linear steps):
+New Lead / Inquiry
+Qualify
+Demo Scheduled
+Proposal Sent
+Negotiation
+Closed (Won/Lost)
+For a thread, automatically map events onto pipeline steps and show badges/CTA:
+“Next suggested step: Send follow-up (in 2 days) — [Send Now] [Schedule]”
+8. UI/UX detailed behaviour
+Sales Emails list
+Default sorted by priority desc, then lastMessageAt.
+Each row: avatar (domain/company), subject, snippet (AI summary), tags, priority pill, lead-stage badge, unread count, lastMessageAt.
+Bulk actions: Mark as read, assign to rep, add to workflow, export.
+Thread detail page
+Layout:
+Left: message list / thread timeline
+Center: message content, message-level AI summary
+Right: AISummary panel with thread summary, suggested actions, lead card with quick actions
+Real-time update via websocket: when new message arrives, append and re-run thread summary (background job triggers push).
+Suggested Actions UI
+Each suggested action shown with confidence and reason.
+Buttons: “Execute” (e.g., send reply using AI draft), “Schedule”, “Assign”, “Dismiss”.
+If user clicks “AI draft -> Send”, show editable composer pre-populated with AI text and tracking options.
+Settings
+Toggle autoCreateLead (on/off)
+Confidence threshold slider (0.0–1.0) for auto create / auto assign
+Frequency / polling interval for inbox
+GDPR: Delete all imported emails button / per-thread delete
+9. Lead mapping & rules
+Primary mapping rule: map fromEmail → Lead.email if exact match.
+Fallback mapping: cluster by domain and fuzzy name match.
+Auto-create: create minimal lead with { name, email, companyFromSignature || inferredCompany }
+Owner assignment:
+If round-robin enabled → assign next rep
+If AI-assigned → use POST /ai/assignment/recommend to get ownerId
+Admin override in UI
+Lead stage updates must be auditable: store previous stage and actor.
+10. Logging, observability & metrics
+Logs:
+Ingestion logs with messageId, userId, source
+AI calls logs: model, promptId, tokensUsed, responseTime
+Worker job metrics: attempts, duration, failures
+Metrics (for dashboard):
+Emails ingested / minute
+% classified as sales
+Average AI processing latency
+Failed processing jobs
+Leads auto-created per day
+Average priority score distribution
+Alerts:
+High failure rate in worker (> 5% per hour)
+AI quota approaching limit
+Unexpected rate of auto-created leads (possible spam)
+11. Security & privacy requirements
+Tokens: store OAuth tokens encrypted (AES-256) and rotated; do not store refresh tokens in plaintext.
+Access controls: ensure GET /api/smart-inbox/sales only returns threads for the user/org/team per RBAC.
+Data minimization: store only parsed metadata and text; do not store full raw HTML unless needed; limit retention by policy.
+GDPR/CCPA: provide endpoints for data export and deletion per user (DELETE /api/user/data or per thread).
+Logging: redact PII in logs (or store PII in encrypted columns).
+12. Error handling & retries
+Worker uses exponential backoff for transient AI or network errors: attempts 3 times (e.g., 1s, 5s, 30s) then mark FAILED and create support ticket.
+If AI returns malformed output → revert to safe defaults (classify as non-sales, save raw AI output in error store).
+On idempotency violation (duplicate messageId) → ignore duplicate and log.
+13. Tests & validation matrix (agent should run these)
+Unit tests
+htmlToPlainText() → input HTML → expected plaintext
+CSV parser edge cases (multi-line fields)
+Deduplication: insert same message twice → single EmailRaw
+AI wrapper: mock model → ensure parsing of expected JSON fields
+Integration tests
+Simulate Gmail webhook → ingest → queue → worker → thread & message created → AISummary stored
+Thread merge behavior: messages with same threadId append to existing thread
+Lead auto-create toggle on/off: verify behavior
+End-to-end tests (Playwright)
+Upload CSV → import summary shows N nodes and M connections
+New incoming email appears in Sales tab within 30s
+Clicking thread shows timeline and suggested action
+Acceptance test checklist (must pass)
+ New inbound email classified as sales appears in Sales tab
+ Thread shows aggregated AI summary with confidence > threshold
+ Message-level AI summary is present for each message
+ Lead created if enabled and attached to thread
+ Timeline lists events and lead-stage changes
+ Activity pipeline reflects past and suggested future steps
+ Reprocessing endpoint re-runs AI and updates summary
+ Permissions enforced (user sees only allowed org/team data)
+14. Sample data & example payloads
+Ingest POST
+{
+  "messageId":"<msgid@example.com>",
+  "threadId":"<thread123>",
+  "from":"jane@acme.com",
+  "to":["sales@youapp.com"],
+  "subject":"Interested in your sensor pricing",
+  "bodyHtml":"<p>Hi, we are interested...</p>",
+  "receivedAt":"2025-11-20T12:34:00Z"
+}
+AI classification output (example)
+{
+  "isSales": true,
+  "intent": "Pricing Question",
+  "tags": ["pricing","enterprise"],
+  "priority": 0.92,
+  "sentiment": "neutral",
+  "leadStage": "In Discussion",
+  "summary": "Acme asks for enterprise pricing and integration timeline. Wants pilot in two weeks.",
+  "nextAction": "Send pricing + integration plan",
+  "confidence": 0.93
+}
+Thread GET response (trimmed)
+{
+  "threadId":"thread123",
+  "subject":"Interested in your sensor pricing",
+  "summary":"Acme asks for enterprise pricing and integration. Suggested action: send pricing + integration plan.",
+  "priority":0.92,
+  "tags":["pricing"],
+  "messages":[
+    {"id":"m1","from":"jane@acme.com","bodyText":"Hi...","sentAt":"2025-11-20T12:34:00Z","aiSummary":"Asks for pricing","aiIntent":"Pricing Question"},
+    {"id":"m2","from":"rep@youapp.com","bodyText":"Thanks for reaching out...","sentAt":"2025-11-20T13:00:00Z","aiSummary":"Rep asked for more details"}
+  ],
+  "activity":[
+    {"timestamp":"2025-11-20T13:05:00Z","actionType":"lead_created","actor":"system","details":"Lead created: Acme Corp"},
+    {"timestamp":"2025-11-20T13:10:00Z","actionType":"ai_suggested_action","actor":"ai","details":"Send pricing + integration plan"}
+  ],
+  "lead":{"id":"lead_1","name":"Acme Corp","stage":"In Discussion","ownerId":"u_234"}
+}
+15. Performance & scaling notes
+For initial MVP, SQLite with worker is OK. For production, migrate DB to Postgres.
+Cache AI responses to avoid repeated calls; invalidate cache on thread changes.
+Batch AI calls for multiple messages to reduce API overhead (where tokens allow).
+For high throughput, use Pub/Sub (Redis streams / RabbitMQ) and horizontally scalable workers.
+Limit thread context length for AI by including only last N messages or a window.
+16. Monitoring & runbook
+Dashboard for worker queue size, average processing time, AI call count/day.
+Alert flow: if queue size > 1000 or AI error rate > 5% → notify SRE.
+Runbook steps for:
+Reprocessing failed jobs
+Clearing stuck locks
+Rotating AI keys and OAuth refresh
+17. Acceptance checklist for agent validation
+The agent should run automated checks and report pass/fail against these items:
+Ingest & Queue
+Can ingest emails and create EmailRaw
+Enqueue and process within configured interval
+AI Processing
+Classify sales relevance with correct schema
+Generate message summaries (<=30 words)
+Provide next-action suggestions
+Threading
+Same threadId messages group into single thread
+Thread summary updates when new message arrives
+Lead Upsert
+Auto-create lead when enabled, attach to thread
+Stage updates reflect AI detection
+UI
+Sales tab lists threads with priority and summary
+Thread page contains timeline + activity pipeline + AISummary panel
+Suggested actions are actionable (buttons exist)
+Security & Privacy
+Only authorized users access threads
+Data deletion endpoint works and removes summaries + raw text
+Testing
+Unit, integration, and E2E tests pass in CI
+Observability
+AI usage logged with token usage and model version
+Queue metrics exposed
+If any item fails, the agent should produce a remediation plan and the exact code/behavior causing the failure.
