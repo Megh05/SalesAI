@@ -161,7 +161,7 @@ export function SalesEmailsList({ onSelectEmail }: SalesEmailsListProps) {
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Search sales emails..."
+              placeholder="Search business emails..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
@@ -220,10 +220,10 @@ export function SalesEmailsList({ onSelectEmail }: SalesEmailsListProps) {
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-16">
               <Mail className="w-16 h-16 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No sales emails found</h3>
+              <h3 className="text-lg font-semibold mb-2">No business emails found</h3>
               <p className="text-muted-foreground text-center">
                 {salesEmails?.length === 0
-                  ? "No emails have been marked as sales-related yet. Use the 'Analyze for Sales' feature on regular emails."
+                  ? "No business-related emails yet. Emails classified as inquiry, follow-up, sales, negotiation, or meetings will appear here."
                   : "No emails match your current filters."}
               </p>
             </CardContent>

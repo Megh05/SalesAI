@@ -655,14 +655,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Sales Emails API endpoints
+  // Get sales-only emails (including all business-related classifications)
   app.get("/api/sales-emails", isAuthenticated, async (req: AuthRequest, res: Response) => {
     try {
       const userId = (req.user as any).id;
-      const emails = await storage.getSalesEmails(userId);
-      res.json(emails);
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const allEmails = await storage.getEmailThreads(userId);
+
+      // Business-related classifications to include
+      const businessClassifications = [
+        "Lead Inquiry",
+        "Follow-up",
+        "Negotiation",
+        "Meeting Request",
+        "Closed Won",
+        "Closed Lost"
+      ];
+
+      // Filter emails that are either marked as sales OR have business-related classifications
+      const salesEmails = allEmails.filter(email => 
+        email.isSales === true || 
+        (email.aiClassification && businessClassifications.includes(email.aiClassification))
+      );
+
+      res.json(salesEmails);
     } catch (error: any) {
       console.error("Error fetching sales emails:", error);
-      res.status(500).json({ message: "Failed to fetch sales emails" });
+      res.status(500).json({ message: error.message || "Failed to fetch sales emails" });
     }
   });
 
@@ -681,10 +703,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = (req.user as any).id;
       const { threadId } = req.params;
-      
+
       const emails = await storage.getEmailsByThreadId(threadId, userId);
       const activities = await storage.getSalesThreadActivities(threadId, userId);
-      
+
       res.json({
         emails,
         activities,

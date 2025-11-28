@@ -430,7 +430,7 @@ export default function SmartInbox() {
           </TabsTrigger>
           <TabsTrigger value="sales" className="gap-2" data-testid="tab-sales">
             <SalesIcon className="w-4 h-4" />
-            Sales
+            Business
           </TabsTrigger>
           <TabsTrigger value="ai-compose" className="gap-2" data-testid="tab-ai-compose">
             <Wand2 className="w-4 h-4" />
