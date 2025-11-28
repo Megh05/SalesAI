@@ -335,41 +335,46 @@ export class EmailSyncService {
         }
 
         // Run sales analysis for comprehensive tagging
-        const salesAnalysis = await aiService.analyzeSalesEmail(userId, {
-          subject: parsedEmail.subject || '',
-          from: this.extractName(parsedEmail.from) || fromEmail,
-          to: toEmail,
-          body: parsedEmail.snippet,
-        });
-
-        if (salesAnalysis) {
-          await storage.updateEmailThread(emailThread.id, userId, {
-            isSales: salesAnalysis.isSales,
-            priorityScore: salesAnalysis.priorityScore,
-            leadStage: salesAnalysis.leadStage,
-            aiSentiment: salesAnalysis.sentiment,
-            aiIntent: salesAnalysis.intent,
-            tags: JSON.stringify(salesAnalysis.tags),
-            aiSummary: salesAnalysis.summary,
-            nextAction: salesAnalysis.nextAction,
+        try {
+          const salesAnalysis = await aiService.analyzeSalesEmail(userId, {
+            subject: parsedEmail.subject || '',
+            from: this.extractName(parsedEmail.from) || fromEmail,
+            to: toEmail,
+            body: parsedEmail.snippet,
           });
 
-          // Create activity for sales-related emails
-          if (salesAnalysis.isSales && parsedEmail.threadId) {
-            await storage.createSalesThreadActivity({
-              threadId: parsedEmail.threadId,
-              emailId: emailThread.id,
-              activityType: "email_received",
-              title: `Email received from ${this.extractName(parsedEmail.from) || fromEmail}`,
-              description: salesAnalysis.summary,
-              metadata: JSON.stringify({
-                priorityScore: salesAnalysis.priorityScore,
-                sentiment: salesAnalysis.sentiment,
-                intent: salesAnalysis.intent,
-              }),
-              userId,
+          if (salesAnalysis) {
+            await storage.updateEmailThread(emailThread.id, userId, {
+              isSales: salesAnalysis.isSales,
+              priorityScore: salesAnalysis.priorityScore,
+              leadStage: salesAnalysis.leadStage,
+              aiSentiment: salesAnalysis.sentiment,
+              aiIntent: salesAnalysis.intent,
+              tags: JSON.stringify(salesAnalysis.tags),
+              aiSummary: salesAnalysis.summary,
+              nextAction: salesAnalysis.nextAction,
             });
+
+            // Create activity for sales-related emails
+            if (salesAnalysis.isSales && parsedEmail.threadId) {
+              await storage.createSalesThreadActivity({
+                threadId: parsedEmail.threadId,
+                emailId: emailThread.id,
+                activityType: "email_received",
+                title: `Email received from ${this.extractName(parsedEmail.from) || fromEmail}`,
+                description: salesAnalysis.summary,
+                metadata: JSON.stringify({
+                  priorityScore: salesAnalysis.priorityScore,
+                  sentiment: salesAnalysis.sentiment,
+                  intent: salesAnalysis.intent,
+                }),
+                userId,
+              });
+            }
           }
+        } catch (salesAnalysisError) {
+          console.error(`Sales analysis error for email ${emailThread.id}:`, salesAnalysisError);
+          // Continue processing - don't let sales analysis failures stop the sync
         }
       } catch (aiError) {
         console.error(`AI classification error for email ${emailThread.id}:`, aiError);

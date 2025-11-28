@@ -531,7 +531,37 @@ Priority scoring guidelines:
         cleaned = jsonMatch[0];
       }
 
-      const result = JSON.parse(cleaned);
+      // Check if we have valid JSON before parsing
+      if (!cleaned || cleaned.length < 2) {
+        console.warn("Empty or invalid response from AI service, using defaults");
+        return {
+          isSales: false,
+          priorityScore: 0.5,
+          leadStage: null,
+          sentiment: "neutral",
+          intent: "other",
+          tags: [],
+          summary: "Unable to analyze - AI response incomplete",
+          nextAction: "Review manually",
+        };
+      }
+
+      let result;
+      try {
+        result = JSON.parse(cleaned);
+      } catch (parseError) {
+        console.error("Failed to parse AI response:", cleaned.substring(0, 200));
+        return {
+          isSales: false,
+          priorityScore: 0.5,
+          leadStage: null,
+          sentiment: "neutral",
+          intent: "other",
+          tags: [],
+          summary: "Unable to analyze - AI response malformed",
+          nextAction: "Review manually",
+        };
+      }
 
       return {
         isSales: result.isSales ?? false,
