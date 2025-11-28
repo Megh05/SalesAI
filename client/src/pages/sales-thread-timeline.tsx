@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,8 +21,30 @@ import {
   User,
   Building2,
   Loader2,
+  Reply,
+  Wand2,
+  Send,
 } from "lucide-react";
 import type { EmailThread, SalesThreadActivity } from "@shared/schema";
+import { useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 
 interface ThreadTimelineData {
   emails: EmailThread[];
@@ -30,13 +52,86 @@ interface ThreadTimelineData {
   threadId: string;
 }
 
+interface EmailDraft {
+  to: string;
+  subject: string;
+  body: string;
+}
+
 export default function SalesThreadTimeline() {
   const { threadId } = useParams<{ threadId: string }>();
   const [, navigate] = useLocation();
 
-  const { data, isLoading } = useQuery<ThreadTimelineData>({
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [emailTone, setEmailTone] = useState<'professional' | 'friendly' | 'persuasive'>('professional');
+  const [emailDraft, setEmailDraft] = useState<EmailDraft>({
+    to: "",
+    subject: "",
+    body: "",
+  });
+  const [generatingEmail, setGeneratingEmail] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
+
+
+  const { data, isLoading, refetch } = useQuery<ThreadTimelineData>({
     queryKey: [`/api/sales-emails/thread/${threadId}`],
     enabled: !!threadId,
+  });
+
+  const sendEmailMutation = useMutation({
+    mutationFn: async (emailData: EmailDraft) => {
+      const response = await fetch(`/api/sales-emails/thread/${threadId}/send`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(emailData),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to send email");
+      }
+      return response.json();
+    },
+    onMutate: () => {
+      setSendingEmail(true);
+    },
+    onSuccess: () => {
+      setSendingEmail(false);
+      setComposeOpen(false);
+      toast.success("Email sent successfully!");
+      refetch(); // Refresh the thread timeline to show the sent email
+    },
+    onError: (error) => {
+      setSendingEmail(false);
+      toast.error(error.message);
+    },
+  });
+
+  const generateEmailMutation = useMutation({
+    mutationFn: async (prompt: string) => {
+      const response = await fetch(`/api/ai/generate-email?threadId=${threadId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ prompt, tone: emailTone }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to generate email");
+      }
+      return response.json();
+    },
+    onMutate: () => {
+      setGeneratingEmail(true);
+    },
+    onSuccess: (data) => {
+      setGeneratingEmail(false);
+      setEmailDraft((prev) => ({ ...prev, body: data.generatedText }));
+    },
+    onError: (error) => {
+      setGeneratingEmail(false);
+      toast.error(error.message);
+    },
   });
 
   const getSentimentIcon = (sentiment: string | null) => {
@@ -94,6 +189,20 @@ export default function SalesThreadTimeline() {
     }
   };
 
+  const handleGenerateReply = () => {
+    if (latestEmail) {
+      generateEmailMutation.mutate(latestEmail.nextAction || "Please write a follow-up email.");
+    }
+  };
+
+  const handleSendEmail = () => {
+    if (emailDraft.to && emailDraft.subject && emailDraft.body) {
+      sendEmailMutation.mutate(emailDraft);
+    } else {
+      toast.error("Please fill in all fields.");
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -147,6 +256,19 @@ export default function SalesThreadTimeline() {
         <Button variant="ghost" size="sm" onClick={() => navigate("/smart-inbox")}>
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Inbox
+        </Button>
+        <Button onClick={() => {
+          if (latestEmail) {
+            setEmailDraft({
+              to: latestEmail.fromEmail,
+              subject: `Re: ${latestEmail.subject}`,
+              body: "",
+            });
+            setComposeOpen(true);
+          }
+        }} data-testid="button-reply">
+          <Reply className="w-4 h-4 mr-2" />
+          Reply
         </Button>
       </div>
 
@@ -356,6 +478,116 @@ export default function SalesThreadTimeline() {
           </Card>
         </div>
       </div>
+
+      {/* Email Compose/Reply Dialog */}
+      <Dialog open={composeOpen} onOpenChange={setComposeOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Reply className="w-5 h-5" />
+              Reply to Email Thread
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email-to">To</Label>
+              <Input
+                id="email-to"
+                value={emailDraft.to}
+                onChange={(e) => setEmailDraft({ ...emailDraft, to: e.target.value })}
+                placeholder="recipient@example.com"
+                data-testid="input-email-to"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email-subject">Subject</Label>
+              <Input
+                id="email-subject"
+                value={emailDraft.subject}
+                onChange={(e) => setEmailDraft({ ...emailDraft, subject: e.target.value })}
+                placeholder="Email subject"
+                data-testid="input-email-subject"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email-tone">Tone</Label>
+              <Select value={emailTone} onValueChange={(value) => setEmailTone(value as 'professional' | 'friendly' | 'persuasive')}>
+                <SelectTrigger id="email-tone" data-testid="select-email-tone">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="professional">Professional</SelectItem>
+                  <SelectItem value="friendly">Friendly</SelectItem>
+                  <SelectItem value="persuasive">Persuasive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="email-body">Message</Label>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleGenerateReply}
+                  disabled={generatingEmail || !latestEmail}
+                  data-testid="button-generate-reply"
+                >
+                  {generatingEmail ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="w-4 h-4 mr-2" />
+                      Generate with AI
+                    </>
+                  )}
+                </Button>
+              </div>
+              <Textarea
+                id="email-body"
+                value={emailDraft.body}
+                onChange={(e) => setEmailDraft({ ...emailDraft, body: e.target.value })}
+                placeholder="Write your message here..."
+                rows={10}
+                data-testid="textarea-email-body"
+              />
+            </div>
+            {latestEmail?.nextAction && (
+              <div className="p-3 bg-muted rounded-md flex items-start gap-2">
+                <Sparkles className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium mb-1">Suggested Action</p>
+                  <p className="text-sm text-muted-foreground">{latestEmail.nextAction}</p>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setComposeOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSendEmail} 
+              disabled={sendingEmail || !emailDraft.to || !emailDraft.subject || !emailDraft.body}
+              data-testid="button-send-email"
+            >
+              {sendingEmail ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4 mr-2" />
+                  Send Email
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
