@@ -87,7 +87,7 @@ export class EmailSyncService {
 
           stats.newEmails++;
 
-          if (settings.openrouterApiKey) {
+          if (settings.openRouterApiKey) {
             try {
               const classification = await aiService.classifyEmail(userId, {
                 subject: parsedEmail.subject || '',
@@ -117,6 +117,44 @@ export class EmailSyncService {
 
                 if (contactId) {
                   await this.autoUpdateLead(userId, contactId, classification.classification, emailThread.id);
+                }
+              }
+
+              // Run sales analysis for comprehensive tagging
+              const salesAnalysis = await aiService.analyzeSalesEmail(userId, {
+                subject: parsedEmail.subject || '',
+                from: this.extractName(parsedEmail.from) || fromEmail,
+                to: toEmail,
+                body: parsedEmail.snippet,
+              });
+
+              if (salesAnalysis) {
+                await storage.updateEmailThread(emailThread.id, userId, {
+                  isSales: salesAnalysis.isSales,
+                  priorityScore: salesAnalysis.priorityScore,
+                  leadStage: salesAnalysis.leadStage,
+                  aiSentiment: salesAnalysis.sentiment,
+                  aiIntent: salesAnalysis.intent,
+                  tags: JSON.stringify(salesAnalysis.tags),
+                  aiSummary: salesAnalysis.summary,
+                  nextAction: salesAnalysis.nextAction,
+                });
+
+                // Create activity for sales-related emails
+                if (salesAnalysis.isSales && parsedEmail.threadId) {
+                  await storage.createSalesThreadActivity({
+                    threadId: parsedEmail.threadId,
+                    emailId: emailThread.id,
+                    activityType: "email_received",
+                    title: `Email received from ${this.extractName(parsedEmail.from) || fromEmail}`,
+                    description: salesAnalysis.summary,
+                    metadata: JSON.stringify({
+                      priorityScore: salesAnalysis.priorityScore,
+                      sentiment: salesAnalysis.sentiment,
+                      intent: salesAnalysis.intent,
+                    }),
+                    userId,
+                  });
                 }
               }
             } catch (aiError) {
