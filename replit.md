@@ -8,8 +8,29 @@ The application serves as a centralized hub for managing companies, contacts, le
 
 ## Recent Changes
 
-**November 28, 2025** - Smart Sales Inbox Feature Completed
-- New "Sales" tab in Smart Inbox for viewing sales-classified emails
+**November 28, 2025** - Smart Sales Inbox Feature Enhanced
+- Enhanced Sales Emails List:
+  - Avatar/company icons based on email domain
+  - Priority sorting (high to low, then by date)
+  - Bulk selection with checkboxes
+  - Bulk actions: Mark as Read, Export to CSV
+  - Sort-by dropdown (priority, date, sender)
+  - Unread count badges
+- Enhanced Thread Timeline Page:
+  - 3-column layout: Messages list | Email content | AI insights panel
+  - Activity Pipeline visual with horizontal stages (Inquiry → Qualified → Demo → Proposal → Negotiation → Closed)
+  - Suggested Actions UI with Execute, Schedule, Dismiss buttons
+  - GDPR-compliant thread delete button
+- Smart Inbox Settings section:
+  - Auto-create Lead toggle
+  - Confidence Threshold slider (0-100%)
+  - Polling Interval configuration
+- Enhanced API endpoints:
+  - GET /api/sales-emails with pagination (page, limit) and filters (search, tags, leadStage, sentiment)
+  - POST /api/smart-inbox/action/:threadId for task creation and follow-up scheduling
+  - DELETE /api/emails/thread/:threadId for GDPR thread deletion
+  - POST /api/emails/:id/read for marking emails as read
+- New database fields in userSettings: autoCreateLead, confidenceThreshold, pollingInterval
 - AI-powered sales email analysis with:
   - isSales detection (boolean flag for sales-related emails)
   - Priority scoring (0-1 scale for urgency/importance)
@@ -31,11 +52,6 @@ The application serves as a centralized hub for managing companies, contacts, le
   - salesThreadActivities for timeline tracking
 - New emailThreads fields: isSales, priorityScore, leadStage, aiSentiment, aiIntent, tags, bodyHtml
 - Auto sales analysis during email sync for incoming emails
-- New API endpoints:
-  - GET /api/sales-emails - List sales-classified emails
-  - GET /api/sales-emails/tags - Get all unique tags
-  - GET /api/sales-emails/thread/:threadId - Get thread timeline
-  - POST /api/emails/:id/analyze-sales - Analyze email for sales classification
 
 **November 10, 2025** - Phase 4: Relation Map & Visualization Completed
 - Interactive graph visualization of sales network relationships
