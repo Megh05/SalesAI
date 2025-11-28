@@ -36,6 +36,8 @@ import type { EmailThread } from "@shared/schema";
 import { AIConfidenceBadge } from "@/components/ai-confidence-badge";
 import { LeadStatusBadge } from "@/components/lead-status-badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SalesEmailsList } from "@/components/sales-emails-list";
+import { TrendingUp as SalesIcon } from "lucide-react";
 
 interface EmailThreadGroup {
   threadId: string | null;
@@ -77,7 +79,7 @@ export default function SmartInbox() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [replyToEmail, setReplyToEmail] = useState<EmailThread | null>(null);
   const [emailDraft, setEmailDraft] = useState({ to: '', subject: '', body: '' });
-  const [activeChannel, setActiveChannel] = useState<'email' | 'linkedin' | 'ai-compose'>('email');
+  const [activeChannel, setActiveChannel] = useState<'email' | 'linkedin' | 'sales' | 'ai-compose'>('email');
   const [emailTone, setEmailTone] = useState<'professional' | 'friendly' | 'persuasive'>('professional');
   const [generatingEmail, setGeneratingEmail] = useState(false);
 
@@ -416,8 +418,8 @@ export default function SmartInbox() {
       </div>
 
       {/* Channel Tabs */}
-      <Tabs value={activeChannel} onValueChange={(value) => setActiveChannel(value as 'email' | 'linkedin' | 'ai-compose')}>
-        <TabsList className="grid w-full max-w-2xl grid-cols-3">
+      <Tabs value={activeChannel} onValueChange={(value) => setActiveChannel(value as 'email' | 'linkedin' | 'sales' | 'ai-compose')}>
+        <TabsList className="grid w-full max-w-3xl grid-cols-4">
           <TabsTrigger value="email" className="gap-2" data-testid="tab-email">
             <SiGmail className="w-4 h-4" />
             Email
@@ -426,6 +428,10 @@ export default function SmartInbox() {
             <SiLinkedin className="w-4 h-4" />
             LinkedIn
           </TabsTrigger>
+          <TabsTrigger value="sales" className="gap-2" data-testid="tab-sales">
+            <SalesIcon className="w-4 h-4" />
+            Sales
+          </TabsTrigger>
           <TabsTrigger value="ai-compose" className="gap-2" data-testid="tab-ai-compose">
             <Wand2 className="w-4 h-4" />
             AI Compose
@@ -433,7 +439,9 @@ export default function SmartInbox() {
         </TabsList>
       </Tabs>
 
-      {activeChannel === 'ai-compose' ? (
+      {activeChannel === 'sales' ? (
+        <SalesEmailsList onSelectEmail={(email) => setSelectedEmail(email.id)} />
+      ) : activeChannel === 'ai-compose' ? (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

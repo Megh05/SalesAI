@@ -31,6 +31,7 @@ import MemberProfile from "@/pages/member-profile";
 import LinkedInImport from "@/pages/linkedin-import";
 import LinkedInCompanies from "@/pages/linkedin-companies";
 import LinkedInMap from "@/pages/linkedin-map";
+import SalesThreadTimeline from "@/pages/sales-thread-timeline";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
 import { Loader2 } from "lucide-react";
@@ -40,6 +41,8 @@ function AuthenticatedRouter() {
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/inbox" component={SmartInbox} />
+      <Route path="/smart-inbox" component={SmartInbox} />
+      <Route path="/smart-inbox/sales/:threadId" component={SalesThreadTimeline} />
       <Route path="/leads" component={Leads} />
       <Route path="/companies" component={Companies} />
       <Route path="/contacts" component={Contacts} />
