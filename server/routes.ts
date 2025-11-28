@@ -922,6 +922,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const sentMessage = await gmailService.sendEmail(gmail, to, subject, body);
 
+      // Create email thread record for sent email
+      const user = await storage.getUserByEmail((req.user as any).email);
+      const emailThread = await storage.createEmailThread({
+        subject,
+        snippet: body.substring(0, 200),
+        fromEmail: user?.email || (req.user as any).email,
+        fromName: user?.email || (req.user as any).email,
+        toEmail: to,
+        threadId: replyToThreadId || sentMessage.id,
+        messageId: sentMessage.id,
+        channel: 'email',
+        bodyHtml: body,
+        userId,
+        receivedAt: new Date(),
+      });
+
+      // Create activity
       const activity = await storage.createActivity({
         type: 'email',
         title: `Sent email: ${subject}`,
@@ -929,10 +946,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId,
       });
 
+      // If this is a reply to a thread, create a sales activity
+      if (replyToThreadId) {
+        await storage.createSalesThreadActivity({
+          threadId: replyToThreadId,
+          emailId: emailThread.id,
+          activityType: 'email_sent',
+          title: 'Email Sent',
+          description: `Sent reply: ${subject}`,
+          userId,
+        });
+      }
+
       res.json({
         success: true,
         message: "Email sent successfully",
         messageId: sentMessage.id,
+        emailThread,
         activity
       });
     } catch (error: any) {
