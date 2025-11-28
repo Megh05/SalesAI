@@ -80,15 +80,21 @@ export default function SalesThreadTimeline() {
 
   const sendEmailMutation = useMutation({
     mutationFn: async (emailData: EmailDraft) => {
-      const response = await fetch(`/api/sales-emails/thread/${threadId}/send`, {
+      const response = await fetch("/api/emails/send", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(emailData),
+        body: JSON.stringify({
+          to: emailData.to,
+          subject: emailData.subject,
+          body: emailData.body,
+          replyToThreadId: threadId,
+        }),
       });
       if (!response.ok) {
-        throw new Error("Failed to send email");
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to send email");
       }
       return response.json();
     },
@@ -98,6 +104,7 @@ export default function SalesThreadTimeline() {
     onSuccess: () => {
       setSendingEmail(false);
       setComposeOpen(false);
+      setEmailDraft({ to: "", subject: "", body: "" });
       toast.success("Email sent successfully!");
       refetch(); // Refresh the thread timeline to show the sent email
     },
