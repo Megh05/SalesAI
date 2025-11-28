@@ -24,6 +24,7 @@ import {
   Reply,
   Wand2,
   Send,
+  RefreshCw,
 } from "lucide-react";
 import type { EmailThread, SalesThreadActivity } from "@shared/schema";
 import { useState } from "react";
