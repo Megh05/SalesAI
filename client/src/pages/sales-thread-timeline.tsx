@@ -314,10 +314,19 @@ export default function SalesThreadTimeline() {
 
   return (
     <div className="p-8 space-y-6">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 flex-wrap">
         <Button variant="ghost" size="sm" onClick={() => navigate("/smart-inbox")}>
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Inbox
+        </Button>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => refetch()}
+          disabled={isLoading}
+        >
+          <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+          Refresh
         </Button>
         <Button onClick={() => {
           if (latestEmail) {

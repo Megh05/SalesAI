@@ -49,6 +49,9 @@ export class EmailSyncService {
       const messages = await gmailService.listMessages(gmail, 20);
       stats.totalEmails = messages.length;
 
+      // Track processed thread IDs to fetch all messages in each thread
+      const processedThreadIds = new Set<string>();
+
       for (const message of messages) {
         try {
           const existingEmail = await storage.getEmailThreadByMessageId(message.id);
@@ -58,109 +61,33 @@ export class EmailSyncService {
 
           const messageDetails = await gmailService.getMessage(gmail, message.id);
           const parsedEmail = gmailService.parseEmailMessage(messageDetails);
-
-          const fromEmail = this.extractEmail(parsedEmail.from);
-          const toEmail = this.extractEmail(parsedEmail.to);
-
-          let contactId = null;
-          const existingContacts = await storage.getContacts(userId);
-          const matchingContact = existingContacts.find(
-            c => c.email.toLowerCase() === fromEmail.toLowerCase()
-          );
-
-          if (matchingContact) {
-            contactId = matchingContact.id;
-          }
-
-          const emailThread = await storage.createEmailThread({
-            subject: parsedEmail.subject || '(No Subject)',
-            snippet: parsedEmail.snippet,
-            fromEmail,
-            fromName: this.extractName(parsedEmail.from),
-            toEmail,
-            threadId: parsedEmail.threadId,
-            messageId: parsedEmail.id,
-            contactId,
-            userId,
-            receivedAt: parsedEmail.date ? new Date(parsedEmail.date) : new Date(),
-          });
-
-          stats.newEmails++;
-
-          if (settings.openRouterApiKey) {
-            try {
-              const classification = await aiService.classifyEmail(userId, {
-                subject: parsedEmail.subject || '',
-                from: this.extractName(parsedEmail.from) || fromEmail,
-                preview: parsedEmail.snippet,
-              });
-
-              if (classification) {
-                await storage.updateEmailThread(emailThread.id, userId, {
-                  aiClassification: classification.classification,
-                  aiConfidence: classification.confidence,
-                  nextAction: classification.nextAction,
-                });
-
-                stats.classifiedEmails++;
-
-                n8nService.triggerWorkflow(settings, "email.classified", {
-                  emailId: emailThread.id,
-                  subject: parsedEmail.subject || '(No Subject)',
-                  fromEmail,
-                  fromName: this.extractName(parsedEmail.from),
-                  classification: classification.classification,
-                  confidence: classification.confidence,
-                  summary: classification.summary,
-                  nextAction: classification.nextAction,
-                }).catch(err => console.error("n8n trigger error:", err));
-
-                if (contactId) {
-                  await this.autoUpdateLead(userId, contactId, classification.classification, emailThread.id);
+          
+          // If this thread hasn't been fully processed, fetch all messages in it
+          if (parsedEmail.threadId && !processedThreadIds.has(parsedEmail.threadId)) {
+            processedThreadIds.add(parsedEmail.threadId);
+            
+            // Fetch all messages in this thread
+            const threadMessages = await gmailService.listMessages(gmail, 50, parsedEmail.threadId);
+            
+            for (const threadMessage of threadMessages) {
+              try {
+                const existingThreadEmail = await storage.getEmailThreadByMessageId(threadMessage.id);
+                if (existingThreadEmail) {
+                  continue;
                 }
+                
+                const threadMessageDetails = await gmailService.getMessage(gmail, threadMessage.id);
+                const threadParsedEmail = gmailService.parseEmailMessage(threadMessageDetails);
+                
+                await this.processAndStoreEmail(userId, threadParsedEmail, settings, stats);
+              } catch (threadEmailError) {
+                console.error(`Error processing thread message ${threadMessage.id}:`, threadEmailError);
               }
-
-              // Run sales analysis for comprehensive tagging
-              const salesAnalysis = await aiService.analyzeSalesEmail(userId, {
-                subject: parsedEmail.subject || '',
-                from: this.extractName(parsedEmail.from) || fromEmail,
-                to: toEmail,
-                body: parsedEmail.snippet,
-              });
-
-              if (salesAnalysis) {
-                await storage.updateEmailThread(emailThread.id, userId, {
-                  isSales: salesAnalysis.isSales,
-                  priorityScore: salesAnalysis.priorityScore,
-                  leadStage: salesAnalysis.leadStage,
-                  aiSentiment: salesAnalysis.sentiment,
-                  aiIntent: salesAnalysis.intent,
-                  tags: JSON.stringify(salesAnalysis.tags),
-                  aiSummary: salesAnalysis.summary,
-                  nextAction: salesAnalysis.nextAction,
-                });
-
-                // Create activity for sales-related emails
-                if (salesAnalysis.isSales && parsedEmail.threadId) {
-                  await storage.createSalesThreadActivity({
-                    threadId: parsedEmail.threadId,
-                    emailId: emailThread.id,
-                    activityType: "email_received",
-                    title: `Email received from ${this.extractName(parsedEmail.from) || fromEmail}`,
-                    description: salesAnalysis.summary,
-                    metadata: JSON.stringify({
-                      priorityScore: salesAnalysis.priorityScore,
-                      sentiment: salesAnalysis.sentiment,
-                      intent: salesAnalysis.intent,
-                    }),
-                    userId,
-                  });
-                }
-              }
-            } catch (aiError) {
-              console.error(`AI classification error for email ${emailThread.id}:`, aiError);
             }
+            continue; // Skip processing the original message since it's handled in the thread loop
           }
+
+          await this.processAndStoreEmail(userId, parsedEmail, settings, stats);
         } catch (emailError) {
           console.error(`Error processing email ${message.id}:`, emailError);
           stats.errors++;
@@ -336,6 +263,117 @@ export class EmailSyncService {
       console.log(`Auto-sync initialized for ${allSettings.filter(s => s.gmailConnected).length} users`);
     } catch (error) {
       console.error('Error initializing auto-sync:', error);
+    }
+  }
+
+  private async processAndStoreEmail(
+    userId: string,
+    parsedEmail: any,
+    settings: any,
+    stats: SyncStats
+  ): Promise<void> {
+    const fromEmail = this.extractEmail(parsedEmail.from);
+    const toEmail = this.extractEmail(parsedEmail.to);
+
+    let contactId = null;
+    const existingContacts = await storage.getContacts(userId);
+    const matchingContact = existingContacts.find(
+      c => c.email.toLowerCase() === fromEmail.toLowerCase()
+    );
+
+    if (matchingContact) {
+      contactId = matchingContact.id;
+    }
+
+    const emailThread = await storage.createEmailThread({
+      subject: parsedEmail.subject || '(No Subject)',
+      snippet: parsedEmail.snippet,
+      fromEmail,
+      fromName: this.extractName(parsedEmail.from),
+      toEmail,
+      threadId: parsedEmail.threadId,
+      messageId: parsedEmail.id,
+      contactId,
+      userId,
+      receivedAt: parsedEmail.date ? new Date(parsedEmail.date) : new Date(),
+      bodyHtml: parsedEmail.bodyHtml,
+    });
+
+    stats.newEmails++;
+
+    if (settings.openRouterApiKey) {
+      try {
+        const classification = await aiService.classifyEmail(userId, {
+          subject: parsedEmail.subject || '',
+          from: this.extractName(parsedEmail.from) || fromEmail,
+          preview: parsedEmail.snippet,
+        });
+
+        if (classification) {
+          await storage.updateEmailThread(emailThread.id, userId, {
+            aiClassification: classification.classification,
+            aiConfidence: classification.confidence,
+            nextAction: classification.nextAction,
+          });
+
+          stats.classifiedEmails++;
+
+          n8nService.triggerWorkflow(settings, "email.classified", {
+            emailId: emailThread.id,
+            subject: parsedEmail.subject || '(No Subject)',
+            fromEmail,
+            fromName: this.extractName(parsedEmail.from),
+            classification: classification.classification,
+            confidence: classification.confidence,
+            summary: classification.summary,
+            nextAction: classification.nextAction,
+          }).catch(err => console.error("n8n trigger error:", err));
+
+          if (contactId) {
+            await this.autoUpdateLead(userId, contactId, classification.classification, emailThread.id);
+          }
+        }
+
+        // Run sales analysis for comprehensive tagging
+        const salesAnalysis = await aiService.analyzeSalesEmail(userId, {
+          subject: parsedEmail.subject || '',
+          from: this.extractName(parsedEmail.from) || fromEmail,
+          to: toEmail,
+          body: parsedEmail.snippet,
+        });
+
+        if (salesAnalysis) {
+          await storage.updateEmailThread(emailThread.id, userId, {
+            isSales: salesAnalysis.isSales,
+            priorityScore: salesAnalysis.priorityScore,
+            leadStage: salesAnalysis.leadStage,
+            aiSentiment: salesAnalysis.sentiment,
+            aiIntent: salesAnalysis.intent,
+            tags: JSON.stringify(salesAnalysis.tags),
+            aiSummary: salesAnalysis.summary,
+            nextAction: salesAnalysis.nextAction,
+          });
+
+          // Create activity for sales-related emails
+          if (salesAnalysis.isSales && parsedEmail.threadId) {
+            await storage.createSalesThreadActivity({
+              threadId: parsedEmail.threadId,
+              emailId: emailThread.id,
+              activityType: "email_received",
+              title: `Email received from ${this.extractName(parsedEmail.from) || fromEmail}`,
+              description: salesAnalysis.summary,
+              metadata: JSON.stringify({
+                priorityScore: salesAnalysis.priorityScore,
+                sentiment: salesAnalysis.sentiment,
+                intent: salesAnalysis.intent,
+              }),
+              userId,
+            });
+          }
+        }
+      } catch (aiError) {
+        console.error(`AI classification error for email ${emailThread.id}:`, aiError);
+      }
     }
   }
 

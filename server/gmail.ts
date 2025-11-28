@@ -53,13 +53,20 @@ export class GmailService {
     return google.gmail({ version: 'v1', auth: oauth2Client });
   }
 
-  async listMessages(gmail: any, maxResults: number = 50) {
-    const res = await gmail.users.messages.list({
-      userId: 'me',
-      maxResults,
-      labelIds: ['INBOX'],
-    });
-    return res.data.messages || [];
+  async listMessages(gmail: any, maxResults: number = 10, threadId?: string): Promise<any[]> {
+    try {
+      const response = await gmail.users.messages.list({
+        userId: 'me',
+        maxResults,
+        labelIds: ['INBOX'],
+        ...(threadId && { q: `in:anywhere threadId:${threadId}` }),
+      });
+
+      return response.data.messages || [];
+    } catch (error) {
+      console.error('Error listing messages:', error);
+      throw error;
+    }
   }
 
   async getMessage(gmail: any, messageId: string) {
