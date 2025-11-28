@@ -1,0 +1,154 @@
+You are an expert full-stack engineer responsible for building the “Smart Sales Inbox: Auto-Tagging & Timeline Threading” feature inside an existing Sales Automation SaaS platform.
+Your task:
+Create a new module inside the Smart Inbox that automatically detects sales-related emails, groups them into threads, summarizes them, tags them, and generates a timeline + activity pipeline for each conversation — all powered by Mistral/OpenRouter.
+🔥 FEATURE SPECIFICATION (Build All Parts)
+1️⃣ New “Sales Emails” Tab
+Add a new navigation tab under Smart Inbox:
+Smart Inbox → All → Sales Emails → Internal → External
+Implement Sales Emails tab containing only emails classified by AI as:
+Lead Inquiry
+Sales Follow-up
+Negotiation
+Demo Request
+Pricing Question
+Close Won / Close Lost
+RFP / Proposal
+General Sales Communication
+Filtering logic:
+backend flags email.is_sales = true
+frontend queries only these emails
+2️⃣ Auto-Processing Engine (Daemon / Cron Worker)
+Create a background job that runs every 30 seconds:
+Engine Responsibilities:
+Fetch new unread emails from Gmail API
+Push raw content to AI engine for:
+Sales relevance classification
+Tag extraction
+Priority score (0–1)
+Lead stage detection
+Summary generation
+If email is part of a thread:
+match using threadId
+append to existing conversation
+If new conversation:
+create new conversation record
+auto-create lead in CRM (if person/company unrecognized)
+Create queue table in SQLite:
+email_processing_queue
+  id
+  email_id
+  status (pending, processing, completed, error)
+  retries
+  created_at
+3️⃣ Threading System (Email Conversations)
+Create new tables:
+email_threads
+id
+subject
+lead_id (nullable)
+last_message_at
+summary (AI-updated)
+tags (string[])
+priority_score
+email_messages
+id
+thread_id
+from
+to
+body_html
+timestamp
+ai_summary
+ai_sentiment
+ai_intent
+lead_stage
+Automatically:
+Detect if email belongs to an existing thread via Gmail threadId
+If thread doesn't exist → create it
+Update thread summary using AI each time a new message arrives
+4️⃣ Sales Timeline View (Per Thread)
+UI component:
+/smart-inbox/sales/[threadId]
+Display 3 sections:
+A. AI Thread Summary (Top of Page)
+Title: “AI Summary of Sales Thread”
+2–3 sentence overview
+“Next Suggested Action”
+Confidence Score
+B. Timeline Summary
+Chronological summary list:
+Inbound message summary
+Outbound message summary
+Lead stage change (Prospect → Hot Lead → Negotiation → Closed)
+AI-detected sentiment shifts
+Attachments
+Follow-up reminders created automatically
+C. Activity Pipeline (Pipeline View)
+UI similar to Linear/HubSpot style:
+● Email Received
+→ AI Classified: Lead Inquiry
+→ Lead Created: Company X, Contact Y
+→ AI Suggested: Send follow-up in 2 days
+→ User Responded
+→ Lead Stage Updated: In Discussion
+→ Proposal Sent
+→ Final Negotiation
+Each item clickable → opens message details.
+5️⃣ AI Automation Logic (Mistral API)
+Agent must create an internal AI service:
+Functions:
+classifySalesRelevance(email)
+generateShortSummary(email)
+generateThreadSummary(thread)
+detectLeadStage(email/thread)
+extractTags(email)
+suggestNextAction(email/thread)
+sentimentAnalysis(email)
+Store all AI outputs in the database.
+6️⃣ Backend Endpoints to Build
+Endpoint	Purpose
+GET /api/smart-inbox/sales	List all sales emails
+GET /api/smart-inbox/sales/:threadId	Get thread timeline + pipeline
+POST /api/smart-inbox/ingest-email	Trigger manual ingest
+POST /api/smart-inbox/ai/process-email	Background processor hook
+GET /api/smart-inbox/sales/tags	Tag filtering
+All endpoints must work with SQLite + Prisma.
+7️⃣ Frontend Components to Build
+SalesEmailsList (paginated list)
+ThreadTimelineView (horizontal pipeline)
+ThreadMessageList (message bubbles)
+AISummaryPanel (sticky sidebar)
+SalesFilters (tags, priority, stage)
+Skeleton loaders + shimmer (shadcn)
+8️⃣ Lead Auto-Update
+When email classified as sales-related:
+If sender exists → update lead
+If not → create lead automatically
+Update:
+lead_stage
+last_activity
+score
+sentiment trend
+tags
+9️⃣ Testing Requirements
+Create tests for:
+threading
+pipeline generation
+timeline view
+AI classification
+message parsing
+email ingestion flow
+🎯 Goal
+Deliver a fully automatic, AI-powered Sales Inbox Processing Engine, including:
+New Sales Emails tab
+Auto-threading
+Automatic AI summaries
+Lead auto-update
+Timeline + pipeline activity visualization
+Full CRUD APIs
+Full frontend pages
+Background worker for continuous processing
+❗ Constraints
+Must use SQLite (Prisma)
+Must integrate into existing NestJS/Next.js structure
+Must use your existing Mistral/OpenRouter AI wrapper
+Must maintain clean architecture modules

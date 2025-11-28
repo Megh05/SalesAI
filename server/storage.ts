@@ -37,6 +37,10 @@ import {
   type InsertInvitationToken,
   type LeadAssignment,
   type InsertLeadAssignment,
+  type EmailProcessingQueue,
+  type InsertEmailProcessingQueue,
+  type SalesThreadActivity,
+  type InsertSalesThreadActivity,
   users,
   companies,
   contacts,
@@ -56,6 +60,8 @@ import {
   rolePermissions,
   invitationTokens,
   leadAssignments,
+  emailProcessingQueue,
+  salesThreadActivities,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -361,9 +367,71 @@ export class DatabaseStorage implements IStorage {
   }
 
   async markEmailAsRead(id: string, userId: string): Promise<boolean> {
-    // Note: isRead field not in current schema, this is a placeholder
-    // You may want to add this field to the schema if needed
     return true;
+  }
+
+  // Sales email operations
+  async getSalesEmails(userId: string): Promise<EmailThread[]> {
+    return db.select().from(emailThreads)
+      .where(and(eq(emailThreads.userId, userId), eq(emailThreads.isSales, true)))
+      .orderBy(desc(emailThreads.receivedAt));
+  }
+
+  async getEmailsByThreadId(threadId: string, userId: string): Promise<EmailThread[]> {
+    return db.select().from(emailThreads)
+      .where(and(eq(emailThreads.threadId, threadId), eq(emailThreads.userId, userId)))
+      .orderBy(emailThreads.receivedAt);
+  }
+
+  async getSalesEmailTags(userId: string): Promise<string[]> {
+    const emails = await db.select({ tags: emailThreads.tags })
+      .from(emailThreads)
+      .where(and(eq(emailThreads.userId, userId), eq(emailThreads.isSales, true)));
+    
+    const allTags = new Set<string>();
+    emails.forEach(e => {
+      if (e.tags) {
+        try {
+          const parsed = JSON.parse(e.tags);
+          if (Array.isArray(parsed)) {
+            parsed.forEach(tag => allTags.add(tag));
+          }
+        } catch {}
+      }
+    });
+    return Array.from(allTags);
+  }
+
+  // Email processing queue operations
+  async createEmailProcessingQueue(queueItem: InsertEmailProcessingQueue): Promise<EmailProcessingQueue> {
+    const [item] = await db.insert(emailProcessingQueue).values(queueItem).returning();
+    return item;
+  }
+
+  async getPendingEmailProcessingQueue(userId: string): Promise<EmailProcessingQueue[]> {
+    return db.select().from(emailProcessingQueue)
+      .where(and(eq(emailProcessingQueue.userId, userId), eq(emailProcessingQueue.status, "pending")))
+      .orderBy(emailProcessingQueue.createdAt);
+  }
+
+  async updateEmailProcessingQueue(id: string, data: Partial<InsertEmailProcessingQueue>): Promise<EmailProcessingQueue | undefined> {
+    const [updated] = await db.update(emailProcessingQueue)
+      .set(data)
+      .where(eq(emailProcessingQueue.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Sales thread activity operations
+  async createSalesThreadActivity(activity: InsertSalesThreadActivity): Promise<SalesThreadActivity> {
+    const [newActivity] = await db.insert(salesThreadActivities).values(activity).returning();
+    return newActivity;
+  }
+
+  async getSalesThreadActivities(threadId: string, userId: string): Promise<SalesThreadActivity[]> {
+    return db.select().from(salesThreadActivities)
+      .where(and(eq(salesThreadActivities.threadId, threadId), eq(salesThreadActivities.userId, userId)))
+      .orderBy(salesThreadActivities.createdAt);
   }
 
   // User settings operations

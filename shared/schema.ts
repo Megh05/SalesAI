@@ -1,6 +1,6 @@
 
 import { sql } from "drizzle-orm";
-import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, index, real } from "drizzle-orm/sqlite-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -220,6 +220,7 @@ export const emailThreads = sqliteTable("email_threads", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   subject: text("subject").notNull(),
   snippet: text("snippet"),
+  bodyHtml: text("body_html"),
   fromEmail: text("from_email").notNull(),
   fromName: text("from_name"),
   toEmail: text("to_email"),
@@ -227,10 +228,16 @@ export const emailThreads = sqliteTable("email_threads", {
   aiClassification: text("ai_classification"),
   aiConfidence: integer("ai_confidence"),
   nextAction: text("next_action"),
+  isSales: integer("is_sales", { mode: "boolean" }).default(false),
+  priorityScore: real("priority_score"),
+  leadStage: text("lead_stage"),
+  aiSentiment: text("ai_sentiment"),
+  aiIntent: text("ai_intent"),
+  tags: text("tags"),
   threadId: text("thread_id"),
   messageId: text("message_id"),
-  channel: text("channel").notNull().default("email"), // 'email', 'linkedin', 'twitter', etc.
-  providerMetadata: text("provider_metadata"), // JSON string for channel-specific data
+  channel: text("channel").notNull().default("email"),
+  providerMetadata: text("provider_metadata"),
   contactId: text("contact_id").references(() => contacts.id, { onDelete: "set null" }),
   leadId: text("lead_id").references(() => leads.id, { onDelete: "set null" }),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -245,6 +252,47 @@ export const insertEmailThreadSchema = createInsertSchema(emailThreads).omit({
 
 export type EmailThread = typeof emailThreads.$inferSelect;
 export type InsertEmailThread = z.infer<typeof insertEmailThreadSchema>;
+
+// Email Processing Queue (for background job tracking)
+export const emailProcessingQueue = sqliteTable("email_processing_queue", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  emailId: text("email_id").notNull().references(() => emailThreads.id, { onDelete: "cascade" }),
+  status: text("status").notNull().default("pending"),
+  retries: integer("retries").default(0),
+  errorMessage: text("error_message"),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  processedAt: integer("processed_at", { mode: "timestamp" }),
+});
+
+export const insertEmailProcessingQueueSchema = createInsertSchema(emailProcessingQueue).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type EmailProcessingQueue = typeof emailProcessingQueue.$inferSelect;
+export type InsertEmailProcessingQueue = z.infer<typeof insertEmailProcessingQueueSchema>;
+
+// Sales Thread Activities (for timeline tracking)
+export const salesThreadActivities = sqliteTable("sales_thread_activities", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  threadId: text("thread_id").notNull(),
+  emailId: text("email_id").references(() => emailThreads.id, { onDelete: "cascade" }),
+  activityType: text("activity_type").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  metadata: text("metadata"),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
+export const insertSalesThreadActivitySchema = createInsertSchema(salesThreadActivities).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type SalesThreadActivity = typeof salesThreadActivities.$inferSelect;
+export type InsertSalesThreadActivity = z.infer<typeof insertSalesThreadActivitySchema>;
 
 // User Settings
 export const userSettings = sqliteTable("user_settings", {
