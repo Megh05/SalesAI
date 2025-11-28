@@ -338,7 +338,7 @@ export default function SalesThreadTimeline() {
         <div className="lg:col-span-2 space-y-4">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <CardTitle className="flex items-center gap-2">
                   <MessageSquare className="w-5 h-5" />
                   Thread Timeline
@@ -348,13 +348,13 @@ export default function SalesThreadTimeline() {
                 </Badge>
               </div>
               {latestEmail && (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground break-words">
                   {latestEmail.subject}
                 </p>
               )}
             </CardHeader>
             <CardContent>
-              <ScrollArea className="h-[600px] pr-4">
+              <ScrollArea className="h-[500px] md:h-[600px] pr-4">
                 <div className="relative">
                   <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-border" />
 
@@ -377,20 +377,20 @@ export default function SalesThreadTimeline() {
                           {item.type === "email" ? (
                             <Card className="shadow-sm hover:shadow-md transition-shadow">
                               <CardContent className="p-4">
-                                <div className="flex items-start justify-between mb-2">
-                                  <div className="flex-1">
-                                    <h4 className="font-semibold">
+                                <div className="flex items-start justify-between mb-2 flex-wrap gap-2">
+                                  <div className="flex-1 min-w-0">
+                                    <h4 className="font-semibold truncate">
                                       {emailData?.fromName || emailData?.fromEmail}
                                     </h4>
-                                    <p className="text-xs text-muted-foreground">
+                                    <p className="text-xs text-muted-foreground truncate">
                                       {emailData?.fromEmail}
                                     </p>
                                   </div>
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-2 flex-shrink-0">
                                     {getSentimentIcon(emailData?.aiSentiment || null)}
-                                    <span className="text-xs text-muted-foreground">
+                                    <span className="text-xs text-muted-foreground whitespace-nowrap">
                                       <Clock className="w-3 h-3 inline-block mr-1" />
-                                      {item.date.toLocaleString()}
+                                      {item.date.toLocaleDateString()}
                                     </span>
                                     <Button
                                       size="sm"
@@ -406,45 +406,32 @@ export default function SalesThreadTimeline() {
                                     </Button>
                                   </div>
                                 </div>
-                                <p className="text-sm font-medium mb-2">
+                                <p className="text-sm font-medium mb-2 break-words">
                                   {emailData?.subject}
                                 </p>
                                 
                                 {!isExpanded ? (
-                                  <p className="text-sm text-muted-foreground line-clamp-2">
+                                  <p className="text-sm text-muted-foreground line-clamp-2 break-words">
                                     {emailData?.aiSummary || emailData?.snippet}
                                   </p>
                                 ) : (
                                   <div className="space-y-3">
                                     <div className="p-3 bg-muted/50 rounded-md">
                                       <p className="text-sm font-medium mb-1">Summary:</p>
-                                      <p className="text-sm text-muted-foreground">
+                                      <p className="text-sm text-muted-foreground break-words">
                                         {emailData?.aiSummary || emailData?.snippet}
                                       </p>
                                     </div>
                                     
-                                    {emailData?.bodyHtml && (
-                                      <div className="space-y-2">
-                                        <p className="text-sm font-medium">Email Preview:</p>
-                                        <div className="p-3 bg-background border rounded-md max-h-40 overflow-y-auto">
-                                          <div 
-                                            className="text-sm prose prose-sm max-w-none"
-                                            dangerouslySetInnerHTML={{ 
-                                              __html: emailData.bodyHtml.substring(0, 500) + (emailData.bodyHtml.length > 500 ? '...' : '')
-                                            }}
-                                          />
-                                        </div>
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          onClick={() => handleViewFullEmail(item.id)}
-                                          className="w-full"
-                                        >
-                                          <Mail className="w-4 h-4 mr-2" />
-                                          View Full Email
-                                        </Button>
-                                      </div>
-                                    )}
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleViewFullEmail(item.id)}
+                                      className="w-full"
+                                    >
+                                      <Mail className="w-4 h-4 mr-2" />
+                                      View Full Email
+                                    </Button>
                                   </div>
                                 )}
 
@@ -461,19 +448,19 @@ export default function SalesThreadTimeline() {
                           ) : (
                             <Card className="shadow-sm bg-muted/30 hover:shadow-md transition-shadow">
                               <CardContent className="p-3">
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
                                   {getActivityIcon(activityData?.activityType || "")}
-                                  <span className="font-medium text-sm flex-1">
+                                  <span className="font-medium text-sm flex-1 min-w-0 break-words">
                                     {activityData?.title}
                                   </span>
-                                  <span className="text-xs text-muted-foreground">
-                                    {item.date.toLocaleString()}
+                                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                    {item.date.toLocaleDateString()}
                                   </span>
                                   <Button
                                     size="sm"
                                     variant="ghost"
                                     onClick={() => toggleItemExpansion(item.id)}
-                                    className="h-7 w-7 p-0"
+                                    className="h-7 w-7 p-0 flex-shrink-0"
                                   >
                                     {isExpanded ? (
                                       <MessageSquare className="w-4 h-4" />
@@ -484,30 +471,19 @@ export default function SalesThreadTimeline() {
                                 </div>
                                 
                                 {activityData?.description && !isExpanded && (
-                                  <p className="text-sm text-muted-foreground mt-1 pl-6 line-clamp-2">
+                                  <p className="text-sm text-muted-foreground mt-1 pl-6 line-clamp-2 break-words">
                                     {activityData.description}
                                   </p>
                                 )}
                                 
-                                {isExpanded && (
+                                {isExpanded && activityData?.description && (
                                   <div className="mt-3 space-y-2">
-                                    {activityData?.description && (
-                                      <div className="p-3 bg-background/50 rounded-md">
-                                        <p className="text-sm font-medium mb-1">Details:</p>
-                                        <p className="text-sm text-muted-foreground">
-                                          {activityData.description}
-                                        </p>
-                                      </div>
-                                    )}
-                                    
-                                    {activityData?.metadata && (
-                                      <div className="p-3 bg-background/50 rounded-md">
-                                        <p className="text-sm font-medium mb-1">Additional Info:</p>
-                                        <pre className="text-xs text-muted-foreground overflow-x-auto">
-                                          {JSON.stringify(JSON.parse(activityData.metadata), null, 2)}
-                                        </pre>
-                                      </div>
-                                    )}
+                                    <div className="p-3 bg-background/50 rounded-md">
+                                      <p className="text-sm font-medium mb-1">Details:</p>
+                                      <p className="text-sm text-muted-foreground break-words">
+                                        {activityData.description}
+                                      </p>
+                                    </div>
                                   </div>
                                 )}
                               </CardContent>
@@ -624,79 +600,81 @@ export default function SalesThreadTimeline() {
 
       {/* Full Email View Dialog */}
       <Dialog open={!!viewingEmailId} onOpenChange={() => handleCloseEmailView()}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <Mail className="w-5 h-5" />
               Full Email
             </DialogTitle>
           </DialogHeader>
-          {viewingEmailId && (() => {
-            const email = data?.emails.find(e => e.id === viewingEmailId);
-            if (!email) return null;
-            
-            return (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex items-start justify-between">
+          <ScrollArea className="flex-1 pr-4">
+            {viewingEmailId && (() => {
+              const email = data?.emails.find(e => e.id === viewingEmailId);
+              if (!email) return null;
+              
+              return (
+                <div className="space-y-4 pb-4">
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm font-medium mb-1">From:</p>
+                        <p className="text-sm text-muted-foreground break-words">
+                          {email.fromName} &lt;{email.fromEmail}&gt;
+                        </p>
+                      </div>
+                      <div className="md:text-right">
+                        <p className="text-sm font-medium mb-1">Date:</p>
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(email.receivedAt).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                    
                     <div>
-                      <p className="text-sm font-medium">From:</p>
-                      <p className="text-sm text-muted-foreground">
-                        {email.fromName} &lt;{email.fromEmail}&gt;
-                      </p>
+                      <p className="text-sm font-medium mb-1">To:</p>
+                      <p className="text-sm text-muted-foreground break-words">{email.toEmail || 'N/A'}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium">Date:</p>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(email.receivedAt).toLocaleString()}
-                      </p>
+                    
+                    <div>
+                      <p className="text-sm font-medium mb-1">Subject:</p>
+                      <p className="text-sm text-muted-foreground break-words">{email.subject}</p>
                     </div>
                   </div>
                   
-                  <div>
-                    <p className="text-sm font-medium">To:</p>
-                    <p className="text-sm text-muted-foreground">{email.toEmail || 'N/A'}</p>
-                  </div>
+                  <Separator />
                   
                   <div>
-                    <p className="text-sm font-medium">Subject:</p>
-                    <p className="text-sm text-muted-foreground">{email.subject}</p>
-                  </div>
-                </div>
-                
-                <Separator />
-                
-                <div>
-                  <p className="text-sm font-medium mb-2">Message:</p>
-                  <div className="p-4 bg-muted/50 rounded-md">
-                    {email.bodyHtml ? (
-                      <div 
-                        className="prose prose-sm max-w-none"
-                        dangerouslySetInnerHTML={{ __html: email.bodyHtml }}
-                      />
-                    ) : (
-                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                        {email.snippet}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                
-                {email.aiSummary && (
-                  <>
-                    <Separator />
-                    <div className="p-3 bg-primary/5 rounded-md">
-                      <p className="text-sm font-medium mb-1 flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-primary" />
-                        AI Summary
-                      </p>
-                      <p className="text-sm text-muted-foreground">{email.aiSummary}</p>
+                    <p className="text-sm font-medium mb-2">Message:</p>
+                    <div className="p-4 bg-muted/50 rounded-md max-w-full overflow-x-auto">
+                      {email.bodyHtml ? (
+                        <div 
+                          className="prose prose-sm max-w-none break-words"
+                          dangerouslySetInnerHTML={{ __html: email.bodyHtml }}
+                        />
+                      ) : (
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words">
+                          {email.snippet}
+                        </p>
+                      )}
                     </div>
-                  </>
-                )}
-              </div>
-            );
-          })()}
+                  </div>
+                  
+                  {email.aiSummary && (
+                    <>
+                      <Separator />
+                      <div className="p-3 bg-primary/5 rounded-md">
+                        <p className="text-sm font-medium mb-1 flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-primary" />
+                          AI Summary
+                        </p>
+                        <p className="text-sm text-muted-foreground break-words">{email.aiSummary}</p>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
+          </ScrollArea>
         </DialogContent>
       </Dialog>
 
