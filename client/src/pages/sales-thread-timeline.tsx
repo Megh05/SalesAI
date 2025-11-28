@@ -189,9 +189,34 @@ export default function SalesThreadTimeline() {
     }
   };
 
-  const handleGenerateReply = () => {
-    if (latestEmail) {
-      generateEmailMutation.mutate(latestEmail.nextAction || "Please write a follow-up email.");
+  const handleGenerateReply = async () => {
+    if (!latestEmail) return;
+
+    setGeneratingEmail(true);
+    try {
+      const response = await fetch("/api/emails/generate-reply", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ 
+          emailId: latestEmail.id,
+          tone: emailTone 
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to generate email");
+      }
+
+      const data = await response.json();
+      setEmailDraft((prev) => ({ ...prev, body: data.reply }));
+      toast.success("Email generated successfully!");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to generate email");
+    } finally {
+      setGeneratingEmail(false);
     }
   };
 
