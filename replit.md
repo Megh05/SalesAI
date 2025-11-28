@@ -8,6 +8,35 @@ The application serves as a centralized hub for managing companies, contacts, le
 
 ## Recent Changes
 
+**November 28, 2025** - Smart Sales Inbox Feature Completed
+- New "Sales" tab in Smart Inbox for viewing sales-classified emails
+- AI-powered sales email analysis with:
+  - isSales detection (boolean flag for sales-related emails)
+  - Priority scoring (0-1 scale for urgency/importance)
+  - Lead stage detection (prospect, contacted, qualified, demo, proposal, negotiation, closed)
+  - Sentiment analysis (positive, neutral, negative, urgent)
+  - Intent classification (inquiry, follow_up, negotiation, objection, decision, information)
+  - Automatic tag extraction
+- SalesEmailsList component with filtering by:
+  - Search query (subject, sender name/email)
+  - Tags
+  - Lead stage
+  - Sentiment
+- Sales thread timeline view at /smart-inbox/sales/:threadId showing:
+  - Chronological email history
+  - AI analysis activities
+  - Sales insights panel with priority, stage, sentiment, and tags
+- New database tables:
+  - emailProcessingQueue for background job tracking
+  - salesThreadActivities for timeline tracking
+- New emailThreads fields: isSales, priorityScore, leadStage, aiSentiment, aiIntent, tags, bodyHtml
+- Auto sales analysis during email sync for incoming emails
+- New API endpoints:
+  - GET /api/sales-emails - List sales-classified emails
+  - GET /api/sales-emails/tags - Get all unique tags
+  - GET /api/sales-emails/thread/:threadId - Get thread timeline
+  - POST /api/emails/:id/analyze-sales - Analyze email for sales classification
+
 **November 10, 2025** - Phase 4: Relation Map & Visualization Completed
 - Interactive graph visualization of sales network relationships
 - React Flow-based dynamic graph with automatic layout (dagre algorithm)

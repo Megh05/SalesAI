@@ -94,21 +94,6 @@ export default function SalesThreadTimeline() {
     }
   };
 
-  const allTimelineItems = [
-    ...(data?.emails.map((email) => ({
-      type: "email" as const,
-      id: email.id,
-      date: new Date(email.receivedAt),
-      data: email,
-    })) || []),
-    ...(data?.activities.map((activity) => ({
-      type: "activity" as const,
-      id: activity.id,
-      date: new Date(activity.createdAt!),
-      data: activity,
-    })) || []),
-  ].sort((a, b) => a.date.getTime() - b.date.getTime());
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -117,7 +102,44 @@ export default function SalesThreadTimeline() {
     );
   }
 
-  const latestEmail = data?.emails[data.emails.length - 1];
+  if (!data || !data.emails || data.emails.length === 0) {
+    return (
+      <div className="p-8 space-y-6">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="sm" onClick={() => navigate("/smart-inbox")}>
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Inbox
+          </Button>
+        </div>
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16">
+            <Mail className="w-16 h-16 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Thread not found</h3>
+            <p className="text-muted-foreground text-center">
+              This email thread could not be found or has no messages.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const allTimelineItems = [
+    ...data.emails.map((email) => ({
+      type: "email" as const,
+      id: email.id,
+      date: new Date(email.receivedAt),
+      data: email,
+    })),
+    ...data.activities.map((activity) => ({
+      type: "activity" as const,
+      id: activity.id,
+      date: new Date(activity.createdAt!),
+      data: activity,
+    })),
+  ].sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  const latestEmail = data.emails[data.emails.length - 1];
 
   return (
     <div className="p-8 space-y-6">
